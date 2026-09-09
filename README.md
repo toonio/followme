@@ -1,8 +1,13 @@
 # Running Tracker
 
+**Live app: <https://toonio.github.io/followme/>**
+
 Static, client-only running tracker built to [`running-tracker-spec.md`](running-tracker-spec.md).
 No backend, no accounts, no network calls except the optional Deezer widget.
 Runs are stored in the browser (IndexedDB) and never leave the device unless you export them.
+
+Because the data lives in the browser, each device and each browser keeps its own separate
+history — use the JSON export/import in Settings to move runs between them.
 
 ## Run it
 
