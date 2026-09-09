@@ -58,6 +58,9 @@ var IO = (function () {
       durationSec: Math.round(duration),
       distanceMeters: Math.round(distance),
       avgPaceSecPerKm: Math.round(Number(r.avgPaceSecPerKm) || Utils.paceFrom(distance, duration)),
+      elevationGainM: Math.round(Number(r.elevationGainM) || 0),
+      elevationLossM: Math.round(Number(r.elevationLossM) || 0),
+      place: (r.place && r.place.commune) ? r.place : null,
       points: Array.isArray(r.points) ? r.points.filter(function (p) {
         return p && isFinite(p.lat) && isFinite(p.lng);
       }) : [],

@@ -21,6 +21,7 @@ var Tracker = (function () {
     dom.lastPace = UI.$('#statLastPace');
     dom.speed = UI.$('#statSpeed');
     dom.accuracy = UI.$('#statAccuracy');
+    dom.ascent = UI.$('#statAscent');
     dom.state = UI.$('#gpsState');
     dom.msg = UI.$('#trackerMsg');
     dom.btnStart = UI.$('#btnStart');
@@ -70,6 +71,7 @@ var Tracker = (function () {
       lat: c.latitude,
       lng: c.longitude,
       alt: (c.altitude === null || c.altitude === undefined) ? null : c.altitude,
+      altAcc: (c.altitudeAccuracy === null || c.altitudeAccuracy === undefined) ? null : c.altitudeAccuracy,
       t: t,
       acc: acc,
       cum: session.distance
@@ -136,6 +138,9 @@ var Tracker = (function () {
     // Speed decays to 0 if no fix has landed for a while.
     var stale = session.lastFix && (Date.now() - session.lastFix) > 10000;
     UI.setStat(dom.speed, Utils.formatSpeed(stale ? 0 : session.instantSpeed), 'km/h');
+
+    var elev = Utils.computeElevation(session.points);
+    UI.setStat(dom.ascent, elev.samples ? '+' + elev.gainM : '--', 'm');
   }
 
   function setAccuracy(acc) {
@@ -179,6 +184,7 @@ var Tracker = (function () {
     tickId = setInterval(render, UI_TICK_MS);
 
     WakeLock.acquire('tracker').then(function (s) {
+      if (!session) return;      // already stopped: don't overwrite the closing message
       if (!s && WakeLock.supported()) {
         UI.message(dom.msg, 'Screen wake lock refused — the screen may sleep during the run.', '');
       }
@@ -195,12 +201,18 @@ var Tracker = (function () {
   function finalize(s) {
     var durationSec = Math.round((Date.now() - s.startTs) / 1000);
     var decimateSec = parseInt(Settings.get('decimateSec'), 10) || 4;
+    var elev = Utils.computeElevation(s.points);
     return {
       id: s.id,
       date: new Date(s.startTs).toISOString(),
       durationSec: durationSec,
       distanceMeters: Math.round(s.distance),
       avgPaceSecPerKm: Math.round(Utils.paceFrom(s.distance, durationSec)),
+      // Computed here, from the full-resolution trace — the decimated one that gets
+      // stored has too few samples to smooth honestly.
+      elevationGainM: elev.gainM,
+      elevationLossM: elev.lossM,
+      place: null,
       points: Utils.decimate(s.points, decimateSec),
       splits: Utils.computeSplits(s.points)
     };
@@ -216,10 +228,19 @@ var Tracker = (function () {
     var run = finalize(s);
     setButtons(false);
 
+    // A stray Start→Stop that never got a fix is not a run. Saving it would leave a
+    // 0 km entry dragging the averages down and a blank day marker on the calendar.
+    if (!run.points.length && run.durationSec < 15) {
+      UI.message(dom.msg, 'Nothing to save — no GPS fix in ' + run.durationSec + ' s.', '', 8000);
+      dom.btnNew.disabled = true;
+      return Promise.resolve(null);
+    }
+
     return DB.put(run).then(function () {
       lastSaved = run;
       dom.btnNew.disabled = false;
       showSummary(run, s);
+      resolvePlace(run, s);          // fire and forget: the run is already saved
       if (!silent) {
         UI.message(dom.msg, 'Run saved — ' + Utils.formatKm(run.distanceMeters) + ' km in ' +
           Utils.formatDuration(run.durationSec) + '.', 'ok', 6000);
@@ -231,14 +252,41 @@ var Tracker = (function () {
     });
   }
 
+  /**
+   * Name the commune the run started in. Deliberately after the save and off the
+   * critical path: no network, no permission and no patience is required for the run
+   * itself to be stored — this only decorates it.
+   */
+  function resolvePlace(run, rawSession) {
+    if (!Settings.get('placeLookup')) return;
+    var origin = Geocode.runOrigin(run);
+    if (!origin) return;
+
+    Geocode.reverse(origin.lat, origin.lng).then(function (place) {
+      if (!place) return;
+      return DB.get(run.id).then(function (stored) {
+        var target = stored || run;
+        target.place = place;
+        return DB.put(target).then(function () {
+          if (lastSaved && lastSaved.id === target.id) {
+            lastSaved = target;
+            showSummary(target, rawSession);
+          }
+        });
+      });
+    }).catch(function () { /* offline or blocked: the run keeps its empty place */ });
+  }
+
   function showSummary(run, rawSession) {
     UI.clear(dom.summaryGrid);
     var rows = [
       ['Distance', Utils.formatKm(run.distanceMeters) + ' km'],
       ['Duration', Utils.formatDuration(run.durationSec)],
       ['Avg pace', Utils.formatPace(run.avgPaceSecPerKm) + ' /km'],
+      ['Ascent / descent', '+' + (run.elevationGainM || 0) + ' / -' + (run.elevationLossM || 0) + ' m'],
       ['Stored points', String(run.points.length) + (rawSession ? ' of ' + rawSession.points.length : '')]
     ];
+    if (run.place && run.place.commune) rows.splice(3, 0, ['Commune', Geocode.label(run.place)]);
     if (rawSession && rawSession.rejected) {
       rows.push(['Fixes ignored', rawSession.rejected + ' (low accuracy)']);
     }
@@ -272,6 +320,7 @@ var Tracker = (function () {
       UI.setStat(dom.lastPace, '--:--', '/km');
       UI.setStat(dom.speed, '0.0', 'km/h');
       UI.setStat(dom.accuracy, '--', 'm');
+      UI.setStat(dom.ascent, '--', 'm');
     };
 
     if (session) {

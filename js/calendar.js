@@ -76,7 +76,7 @@ var Calendar = (function () {
     var s = Stats.summarize(monthRuns);
     UI.setText('#calSummary', monthRuns.length
       ? s.runs + ' runs · ' + Utils.formatKm(s.distance, 1) + ' km · ' +
-        Utils.formatDuration(s.duration) + ' · ' + Utils.formatPace(s.pace) + ' /km'
+        Utils.formatDuration(s.duration) + ' · ' + Utils.formatPace(s.pace) + ' /km · +' + s.ascent + ' m'
       : 'No runs this month.');
   }
 
@@ -103,12 +103,15 @@ var Calendar = (function () {
       var block = UI.el('div', { class: 'day-run' });
 
       var grid = UI.el('div', { class: 'summary-grid' });
-      [
+      var rows = [
         ['Start', new Date(r.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })],
         ['Distance', Utils.formatKm(r.distanceMeters) + ' km'],
         ['Duration', Utils.formatDuration(r.durationSec)],
-        ['Avg pace', Utils.formatPace(r.avgPaceSecPerKm) + ' /km']
-      ].forEach(function (row) {
+        ['Avg pace', Utils.formatPace(r.avgPaceSecPerKm) + ' /km'],
+        ['Ascent / descent', '+' + (r.elevationGainM || 0) + ' / -' + (r.elevationLossM || 0) + ' m']
+      ];
+      if (r.place && r.place.commune) rows.push(['Commune', Geocode.label(r.place)]);
+      rows.forEach(function (row) {
         grid.appendChild(UI.el('div', {}, [
           UI.el('span', { text: row[0] }),
           UI.el('span', { text: row[1] })

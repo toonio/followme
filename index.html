@@ -50,6 +50,10 @@
           <span class="stat-label">GPS accuracy</span>
           <span class="stat-value" id="statAccuracy">-- <small>m</small></span>
         </div>
+        <div class="stat">
+          <span class="stat-label">Ascent</span>
+          <span class="stat-value" id="statAscent">-- <small>m</small></span>
+        </div>
       </div>
 
       <div class="btn-row">
@@ -111,6 +115,7 @@
         <button class="seg-btn is-active" data-metric="distance">Distance</button>
         <button class="seg-btn" data-metric="duration">Time</button>
         <button class="seg-btn" data-metric="pace">Pace</button>
+        <button class="seg-btn" data-metric="ascent">Ascent</button>
         <button class="seg-btn" data-metric="runs">Runs</button>
       </div>
       <div id="statsChart" class="chart"></div>
@@ -195,6 +200,18 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>Location names</h2></div>
+      <div class="sound-row">
+        <label class="check">
+          <input type="checkbox" id="setPlaceLookup"> <span>Name the commune when a run is saved</span>
+        </label>
+        <button type="button" class="btn-mini" id="btnFillPlaces">Fill gaps</button>
+      </div>
+      <p class="hint">This is the app's only data request. When a run is saved, its start point &mdash; rounded to about 100 m &mdash; is sent to the French address base (<code>api-adresse.data.gouv.fr</code>), falling back to OpenStreetMap Nominatim outside France, and the answer is stored on the run so it is never asked again. Turn it off and nothing leaves the device. If you run with mobile data off, the lookup silently fails; <b>Fill gaps</b> resolves those runs later.</p>
+      <p id="placeMsg" class="msg" hidden></p>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Backup</h2></div>
       <div class="btn-row">
         <button class="btn" id="btnExport">Export JSON</button>
@@ -233,6 +250,7 @@
 <script src="js/utils.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/db.js"></script>
+<script src="js/geocode.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/wakelock.js"></script>
 <script src="js/timer.js"></script>

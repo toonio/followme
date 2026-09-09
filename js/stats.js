@@ -10,10 +10,11 @@ var Stats = (function () {
   /* ------------------------------ aggregation --------------------------- */
 
   function summarize(list) {
-    var totalDistance = 0, totalDuration = 0, longest = null, fastest = null;
+    var totalDistance = 0, totalDuration = 0, totalAscent = 0, longest = null, fastest = null;
     list.forEach(function (r) {
       totalDistance += r.distanceMeters || 0;
       totalDuration += r.durationSec || 0;
+      totalAscent += r.elevationGainM || 0;
       if (!longest || (r.distanceMeters || 0) > (longest.distanceMeters || 0)) longest = r;
       if ((r.distanceMeters || 0) >= 500) {
         var p = r.avgPaceSecPerKm || Utils.paceFrom(r.distanceMeters, r.durationSec);
@@ -24,6 +25,7 @@ var Stats = (function () {
       runs: list.length,
       distance: totalDistance,
       duration: totalDuration,
+      ascent: totalAscent,
       pace: Utils.paceFrom(totalDistance, totalDuration),
       longest: longest,
       fastest: fastest
@@ -87,7 +89,8 @@ var Stats = (function () {
       ['Time', Utils.formatDuration(s.duration), ''],
       ['Avg pace', Utils.formatPace(s.pace), '/km'],
       ['Longest', s.longest ? Utils.formatKm(s.longest.distanceMeters) : '0.00', 'km'],
-      ['Best pace', s.fastest ? Utils.formatPace(s.fastest.pace) : '--:--', '/km']
+      ['Best pace', s.fastest ? Utils.formatPace(s.fastest.pace) : '--:--', '/km'],
+      ['Ascent', '+' + s.ascent, 'm']
     ];
 
     cards.forEach(function (c) {
@@ -115,6 +118,14 @@ var Stats = (function () {
         format: function (v) { return Math.round(v) + 'm'; },
         zeroBased: true,
         color: '#58a6ff'
+      };
+    }
+    if (metric === 'ascent') {
+      return {
+        value: function (b) { return b.ascent; },
+        format: function (v) { return '+' + Math.round(v); },
+        zeroBased: true,
+        color: '#7ec8e3'
       };
     }
     if (metric === 'runs') {
@@ -163,7 +174,8 @@ var Stats = (function () {
       UI.el('th', { text: 'Runs' }),
       UI.el('th', { text: 'Distance' }),
       UI.el('th', { text: 'Time' }),
-      UI.el('th', { text: 'Pace' })
+      UI.el('th', { text: 'Pace' }),
+      UI.el('th', { text: 'D+' })
     ]);
     table.appendChild(UI.el('thead', {}, [head]));
 
@@ -174,7 +186,8 @@ var Stats = (function () {
         UI.el('td', { text: String(b.runs) }),
         UI.el('td', { text: Utils.formatKm(b.distance, 1) + ' km' }),
         UI.el('td', { text: Utils.formatDuration(b.duration) }),
-        UI.el('td', { text: b.runs ? Utils.formatPace(b.pace) : '—' })
+        UI.el('td', { text: b.runs ? Utils.formatPace(b.pace) : '—' }),
+        UI.el('td', { text: b.runs ? '+' + b.ascent + ' m' : '—' })
       ]));
     });
     table.appendChild(body);
@@ -188,14 +201,15 @@ var Stats = (function () {
       return;
     }
     runs.slice(0, 50).forEach(function (r) {
+      var meta = Utils.formatKm(r.distanceMeters) + ' km · ' + Utils.formatDuration(r.durationSec) +
+                 ' · ' + Utils.formatPace(r.avgPaceSecPerKm) + ' /km';
+      if (r.elevationGainM) meta += ' · +' + r.elevationGainM + ' m';
+      var head = Utils.formatDateTime(r.date);
+      if (r.place && r.place.commune) head += ' · ' + r.place.commune;
       host.appendChild(UI.el('div', { class: 'run-item' }, [
         UI.el('div', { class: 'run-main' }, [
-          UI.el('div', { class: 'run-date', text: Utils.formatDateTime(r.date) }),
-          UI.el('div', {
-            class: 'run-meta',
-            text: Utils.formatKm(r.distanceMeters) + ' km · ' + Utils.formatDuration(r.durationSec) +
-                  ' · ' + Utils.formatPace(r.avgPaceSecPerKm) + ' /km'
-          })
+          UI.el('div', { class: 'run-date', text: head }),
+          UI.el('div', { class: 'run-meta', text: meta })
         ]),
         UI.el('button', {
           class: 'icon-btn', text: 'Delete', 'aria-label': 'Delete run',

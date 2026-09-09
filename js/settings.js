@@ -11,7 +11,8 @@ var Settings = (function () {
     restSec: 60,
     sound: true,
     accuracyThresholdM: 20,
-    decimateSec: 4
+    decimateSec: 4,
+    placeLookup: true
   };
 
   var current = load();

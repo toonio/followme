@@ -126,6 +126,50 @@
 
   /* ------------------------------ settings ------------------------------ */
 
+  /**
+   * Resolve communes for runs that never got one — saved with mobile data off, or
+   * imported from a backup made before this existed. Sequential with a pause between
+   * calls: one request per run, and Nominatim asks for no more than one per second.
+   */
+  function fillMissingPlaces() {
+    var msg = UI.$('#placeMsg');
+    var btn = UI.$('#btnFillPlaces');
+
+    DB.all().then(function (runs) {
+      var pending = runs.filter(function (r) {
+        return (!r.place || !r.place.commune) && Geocode.runOrigin(r);
+      });
+      if (!pending.length) {
+        UI.message(msg, 'Every run with a GPS trace already has a commune.', 'ok', 6000);
+        return;
+      }
+
+      btn.disabled = true;
+      var resolved = 0, failed = 0;
+
+      function step(i) {
+        if (i >= pending.length) {
+          btn.disabled = false;
+          UI.message(msg, 'Resolved ' + resolved + ' of ' + pending.length + ' runs' +
+            (failed ? ' — ' + failed + ' could not be looked up (offline?).' : '.'),
+            resolved ? 'ok' : 'err', 10000);
+          return;
+        }
+        var run = pending[i];
+        UI.message(msg, 'Looking up ' + (i + 1) + ' of ' + pending.length + '…');
+        var origin = Geocode.runOrigin(run);
+        Geocode.reverse(origin.lat, origin.lng).then(function (place) {
+          if (!place) { failed++; return null; }
+          run.place = place;
+          resolved++;
+          return DB.put(run);
+        }).catch(function () { failed++; })
+          .then(function () { setTimeout(function () { step(i + 1); }, 1100); });
+      }
+      step(0);
+    });
+  }
+
   function initSettingsView() {
     var deezer = UI.$('#setDeezer');
     var rounds = UI.$('#setRounds');
@@ -134,6 +178,7 @@
     var sound = UI.$('#setSound');
     var accuracy = UI.$('#setAccuracy');
     var decimate = UI.$('#setDecimate');
+    var placeLookup = UI.$('#setPlaceLookup');
 
     // A focused number input eats wheel events and silently changes value while the
     // page is scrolled — which then gets persisted on `change`. Drop focus instead.
@@ -150,6 +195,7 @@
       sound.checked = !!s.sound;
       accuracy.value = s.accuracyThresholdM;
       decimate.value = s.decimateSec;
+      placeLookup.checked = !!s.placeLookup;
     }
 
     deezer.addEventListener('change', function () {
@@ -191,6 +237,11 @@
       Settings.set({ decimateSec: Utils.clamp(parseInt(decimate.value, 10) || 4, 1, 30) });
       load();
     });
+
+    placeLookup.addEventListener('change', function () {
+      Settings.set({ placeLookup: placeLookup.checked });
+    });
+    UI.$('#btnFillPlaces').addEventListener('click', fillMissingPlaces);
 
     load();
   }

@@ -118,6 +118,8 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   text-overflow: ellipsis;
 }
 .stat-value small { font-size: 12px; font-weight: 500; color: var(--fg-dim); }
+/* An odd tile count leaves a hole in the last row — let the orphan fill it. */
+.stat-grid > .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .stat-lg .stat-value { font-size: 30px; }
 @media (min-width: 560px) {
   .stat-grid { grid-template-columns: repeat(3, 1fr); }
@@ -203,7 +205,7 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
 .table th { color: var(--fg-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
 .table th:first-child, .table td:first-child { text-align: left; }
 
-.seg { display: flex; gap: 4px; background: var(--bg-soft); border-radius: 10px; padding: 3px; }
+.seg { display: flex; gap: 4px; background: var(--bg-soft); border-radius: 10px; padding: 3px; overflow-x: auto; }
 .seg-wide { margin-bottom: 12px; }
 .seg-btn {
   flex: 1 1 auto;

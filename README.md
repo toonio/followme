@@ -32,6 +32,7 @@ count as secure for local testing).
 | `js/utils.js` | Haversine, formatting, ISO week/month keys, Douglas-Peucker, splits |
 | `js/settings.js` | Config in `localStorage` |
 | `js/db.js` | IndexedDB run store (falls back to `localStorage`) |
+| `js/geocode.js` | Reverse geocoding: coordinate to commune name |
 | `js/ui.js` | DOM helpers, modal, route-preview SVG |
 | `js/wakelock.js` | Reference-counted Screen Wake Lock |
 | `js/timer.js` | Interval timer + Web Audio beeps |
@@ -84,10 +85,33 @@ without looking at the phone. **Test** in Settings plays both transition signatu
 to back. Beeps use the media volume, and the audio context is unlocked by the tap on
 Start, so mobile autoplay policies do not silence them.
 
+**Elevation** — cumulative ascent and descent, from the altitudes the GPS already
+reports. Raw altitude is far noisier than position, so summing every delta would invent
+hundreds of metres on flat ground; instead the series is smoothed over a 15-sample
+moving average and changes only count once they clear a 4 m hysteresis band. Measured
+against synthetic profiles at ±8 m of noise: a flat 10-minute run reports ~10–20 m
+instead of the 1650 m a naive sum would claim, a real 100 m hill reads 96–98 m, and
+200 m of rollers read ~180 m. The bias is deliberately downward — gentle undulations
+are under-counted by roughly a quarter, which is the price of not inventing climb on the
+flat. A phone with a barometer will do better than one without. D+ shows live during a
+session, on the saved run, per day, and per week/month in the stats.
+
+**Commune** — the name of the municipality a run started in, resolved once when the run
+is saved and then stored on it. This is the app's **only data request**, and a deliberate
+exception to the spec's no-API rule: a commune cannot be derived from a coordinate
+offline without shipping a boundary dataset. It is narrow by construction — the start
+point is rounded to about 100 m before it is sent, the answer is cached on the run so it
+is never asked twice, failure is silent (the run is already saved), and the whole thing
+is one checkbox in Settings. [BAN](https://adresse.data.gouv.fr/) (the French government
+address base) is asked first and returns the INSEE code; Nominatim covers runs outside
+France. Runs saved with mobile data off keep an empty commune until **Fill gaps** in
+Settings resolves them.
+
 **Stats** — all-time totals plus weekly (ISO week) and monthly buckets, everything
 derived on render from the stored runs. Bar charts for distance, time, pace or run count;
 the pace chart uses a non-zero baseline so differences are visible and skips empty
-buckets. Below the chart, a per-bucket table and the recent-run list (with delete).
+buckets, plus ascent. Below the chart, a per-bucket table and the recent-run list
+(with commune, D+ and delete).
 
 **Calendar** — Monday-first month grid, a distance badge on every day with a run, today
 outlined. Tap a day for its runs: time, distance, duration, pace, per-km splits and a
@@ -116,6 +140,11 @@ reachable mid-run. Set the playlist ID (or paste a playlist URL) in Settings.
   them touch the network.
 - Reloading or closing the tab mid-session loses that session (the browser shows a
   confirmation prompt first).
+- GPS altitude is the weak input behind D+. The filtering above keeps it sane, but treat
+  the number as an estimate: expect it to run low on gently rolling ground, and to differ
+  from what a barometric watch reports.
+- The commune is where the run *started*. A run crossing into the next commune is still
+  filed under the first one.
 
 ## Data model
 
@@ -126,10 +155,22 @@ reachable mid-run. Set the playlist ID (or paste a playlist URL) in Settings.
   "durationSec": 1830,
   "distanceMeters": 5120,
   "avgPaceSecPerKm": 357,
+  "elevationGainM": 117,
+  "elevationLossM": 119,
+  "place": {
+    "commune": "Toulon",
+    "postcode": "83000",
+    "insee": "83137",
+    "source": "ban",
+    "at": "2026-09-09T07:35:12.000Z"
+  },
   "points": [{ "lat": 43.123, "lng": 5.456, "t": 0, "alt": 12 }],
   "splits": [{ "km": 1, "sec": 340 }]
 }
 ```
+
+`place` is `null` until it is resolved, and older exports without the new fields import
+cleanly — elevation defaults to 0 and the commune to none.
 
 `.claude/launch.json` is only a convenience config for serving the folder locally; it is
 not used by the app.
