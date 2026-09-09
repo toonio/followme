@@ -1,0 +1,267 @@
+/* App — bootstraps the views, tab routing, timer UI, Deezer embed and settings form. */
+(function () {
+  'use strict';
+
+  var currentTab = 'tracker';
+
+  /* -------------------------------- tabs -------------------------------- */
+
+  function showTab(name) {
+    currentTab = name;
+    UI.$$('.view').forEach(function (v) {
+      v.hidden = v.getAttribute('data-view') !== name;
+    });
+    UI.$$('.tab').forEach(function (t) {
+      t.classList.toggle('is-active', t.getAttribute('data-tab') === name);
+    });
+    window.scrollTo(0, 0);
+    if (name === 'stats') Stats.refresh();
+    if (name === 'calendar') Calendar.refresh();
+  }
+
+  function initTabs() {
+    UI.$$('.tab').forEach(function (t) {
+      t.addEventListener('click', function () { showTab(t.getAttribute('data-tab')); });
+    });
+  }
+
+  /* ----------------------------- timer view ----------------------------- */
+
+  function initTimerView() {
+    var remaining = UI.$('#timerRemaining');
+    var roundLabel = UI.$('#timerRound');
+    var phasePill = UI.$('#timerPhase');
+    var progress = UI.$('#timerProgress');
+    var btnStart = UI.$('#btnTimerStart');
+    var btnPause = UI.$('#btnTimerPause');
+    var btnReset = UI.$('#btnTimerReset');
+
+    var lastHint = null;
+    function renderHint() {
+      var c = IntervalTimer.config();
+      var text = c.rounds + ' × ' + Utils.formatClock(c.workSec) + ' work / ' + Utils.formatClock(c.restSec) +
+        ' rest (no rest after the last round) — total ' + Utils.formatDuration(IntervalTimer.totalSec()) +
+        '. Change it in Settings.';
+      if (text === lastHint) return;      // called on every tick; only touch the DOM on a real change
+      lastHint = text;
+      UI.setText('#timerConfigHint', text);
+    }
+
+    IntervalTimer.onChange(function (s) {
+      // Settings edited mid-series are adopted at the next reset, so the hint has to
+      // re-render on state changes too, not only when a setting is saved.
+      renderHint();
+      remaining.textContent = Utils.formatClock(s.remainingSec);
+      roundLabel.textContent = s.status === 'done'
+        ? 'series complete'
+        : 'round ' + Math.max(s.round, s.status === 'idle' ? 0 : 1) + ' / ' + s.rounds;
+
+      var kind = 'pill-idle', label = s.status;
+      if (s.status === 'running') {
+        kind = s.phase === 'work' ? 'pill-work' : 'pill-rest';
+        label = s.phase;
+      } else if (s.status === 'paused') {
+        kind = 'pill-warn';
+      }
+      phasePill.className = 'pill ' + kind;
+      phasePill.textContent = label;
+
+      progress.style.width = (s.progress * 100).toFixed(1) + '%';
+      progress.classList.toggle('rest', s.status === 'running' && s.phase === 'rest');
+
+      btnStart.disabled = s.status === 'running';
+      btnStart.textContent = s.status === 'paused' ? 'Resume' : 'Start';
+      btnPause.disabled = s.status !== 'running';
+      btnReset.disabled = s.status === 'idle';
+    });
+
+    btnStart.addEventListener('click', IntervalTimer.start);
+    btnPause.addEventListener('click', IntervalTimer.pause);
+    btnReset.addEventListener('click', IntervalTimer.reset);
+
+    document.addEventListener('settings-changed', renderHint);
+    IntervalTimer.init();
+    IntervalTimer.reset();
+    renderHint();
+  }
+
+  /* ------------------------------- deezer ------------------------------- */
+
+  function renderDeezer() {
+    var host = UI.$('#deezerHost');
+    UI.clear(host);
+    var id = Settings.get('deezerPlaylistId');
+    if (!id) {
+      host.appendChild(UI.el('p', {
+        class: 'deezer-empty',
+        text: 'No playlist set. Add a Deezer playlist ID in Settings to embed it here.'
+      }));
+      return;
+    }
+    host.appendChild(UI.el('iframe', {
+      src: 'https://widget.deezer.com/widget/dark/playlist/' + encodeURIComponent(id),
+      width: '100%',
+      height: '300',
+      frameborder: '0',
+      allowtransparency: 'true',
+      allow: 'encrypted-media; clipboard-write',
+      title: 'Deezer playlist'
+    }));
+
+    // The widget is an anonymous listener unless its own iframe carries a Premium
+    // session, and browsers partition third-party cookies — so it usually falls back
+    // to 30-second previews. The app plays the full tracks; open the playlist there
+    // before starting, then come back to this tab to track.
+    host.appendChild(UI.el('div', { class: 'btn-row' }, [
+      UI.el('a', {
+        class: 'btn', href: 'https://www.deezer.com/playlist/' + encodeURIComponent(id),
+        target: '_blank', rel: 'noopener', text: 'Open in the Deezer app'
+      })
+    ]));
+    host.appendChild(UI.el('p', {
+      class: 'hint',
+      text: 'Previews only? The embedded widget cannot see your Premium session — play from the app instead, then return here. Audio keeps going while this tab is in front.'
+    }));
+  }
+
+  /* ------------------------------ settings ------------------------------ */
+
+  function initSettingsView() {
+    var deezer = UI.$('#setDeezer');
+    var rounds = UI.$('#setRounds');
+    var work = UI.$('#setWork');
+    var rest = UI.$('#setRest');
+    var sound = UI.$('#setSound');
+    var accuracy = UI.$('#setAccuracy');
+    var decimate = UI.$('#setDecimate');
+
+    // A focused number input eats wheel events and silently changes value while the
+    // page is scrolled — which then gets persisted on `change`. Drop focus instead.
+    [rounds, accuracy, decimate].forEach(function (input) {
+      input.addEventListener('wheel', function () { input.blur(); }, { passive: true });
+    });
+
+    function load() {
+      var s = Settings.all();
+      deezer.value = s.deezerPlaylistId;
+      rounds.value = s.rounds;
+      work.value = Utils.formatClock(s.workSec);
+      rest.value = Utils.formatClock(s.restSec);
+      sound.checked = !!s.sound;
+      accuracy.value = s.accuracyThresholdM;
+      decimate.value = s.decimateSec;
+    }
+
+    deezer.addEventListener('change', function () {
+      var id = Settings.normalizePlaylistId(deezer.value);
+      deezer.value = id;
+      Settings.set({ deezerPlaylistId: id });
+      renderDeezer();
+    });
+
+    rounds.addEventListener('change', function () {
+      Settings.set({ rounds: Utils.clamp(parseInt(rounds.value, 10) || 1, 1, 99) });
+      load();
+    });
+    work.addEventListener('change', function () {
+      Settings.set({ workSec: Utils.clamp(Utils.parseClock(work.value, 180), 1, 5999) });
+      load();
+    });
+    rest.addEventListener('change', function () {
+      Settings.set({ restSec: Utils.clamp(Utils.parseClock(rest.value, 60), 0, 5999) });
+      load();
+    });
+    sound.addEventListener('change', function () { Settings.set({ sound: sound.checked }); });
+
+    UI.$('#btnTestSound').addEventListener('click', function () {
+      var btn = UI.$('#btnTestSound');
+      if (!IntervalTimer.preview()) {
+        btn.textContent = 'No audio';
+        return;
+      }
+      btn.textContent = 'Playing…';
+      btn.disabled = true;
+      setTimeout(function () { btn.textContent = 'Test'; btn.disabled = false; }, 2600);
+    });
+    accuracy.addEventListener('change', function () {
+      Settings.set({ accuracyThresholdM: Utils.clamp(parseInt(accuracy.value, 10) || 20, 5, 200) });
+      load();
+    });
+    decimate.addEventListener('change', function () {
+      Settings.set({ decimateSec: Utils.clamp(parseInt(decimate.value, 10) || 4, 1, 30) });
+      load();
+    });
+
+    load();
+  }
+
+  /* -------------------------------- backup ------------------------------ */
+
+  function initBackup() {
+    var msg = UI.$('#ioMsg');
+    var fileInput = UI.$('#importFile');
+
+    UI.$('#btnExport').addEventListener('click', function () {
+      IO.exportAll().then(function (n) {
+        UI.message(msg, n ? 'Exported ' + n + ' runs.' : 'Nothing to export yet.', n ? 'ok' : '', 6000);
+      }).catch(function (err) {
+        UI.message(msg, 'Export failed: ' + (err.message || err), 'err');
+      });
+    });
+
+    UI.$('#btnImport').addEventListener('click', function () { fileInput.click(); });
+
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      IO.handleFile(file, msg).then(function () { fileInput.value = ''; });
+    });
+
+    UI.$('#btnWipe').addEventListener('click', function () {
+      UI.confirm('Delete all runs?',
+        'Every stored run is removed from this browser. Export a backup first if you might want them back.',
+        'Delete everything').then(function (ok) {
+          if (!ok) return;
+          DB.clear().then(function () { UI.message(msg, 'All runs deleted.', 'ok', 6000); });
+        });
+    });
+  }
+
+  /* -------------------------------- boot -------------------------------- */
+
+  function updateStorageBadge() {
+    var parts = [DB.backendName() === 'indexeddb' ? 'IndexedDB' : 'localStorage'];
+    if (!WakeLock.supported()) parts.push('no wake lock');
+    UI.setText('#storageBadge', parts.join(' · '));
+  }
+
+  function boot() {
+    initTabs();
+    Tracker.init();
+    initTimerView();
+    Stats.init();
+    Calendar.init();
+    initSettingsView();
+    initBackup();
+    renderDeezer();
+
+    document.addEventListener('runs-changed', function () {
+      if (currentTab === 'stats') Stats.refresh();
+      if (currentTab === 'calendar') Calendar.refresh();
+    });
+
+    DB.ready().then(function () {
+      updateStorageBadge();
+      // Warm the caches so the first visit to Stats/Calendar is instant.
+      return Stats.refresh();
+    });
+
+    showTab('tracker');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
