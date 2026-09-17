@@ -20,7 +20,6 @@ var Tracker = (function () {
     dom.avgPace = UI.$('#statAvgPace');
     dom.lastPace = UI.$('#statLastPace');
     dom.speed = UI.$('#statSpeed');
-    dom.accuracy = UI.$('#statAccuracy');
     dom.ascent = UI.$('#statAscent');
     dom.state = UI.$('#gpsState');
     dom.msg = UI.$('#trackerMsg');
@@ -58,7 +57,6 @@ var Tracker = (function () {
 
     var threshold = parseInt(Settings.get('accuracyThresholdM'), 10) || 20;
     var acc = (c.accuracy === null || c.accuracy === undefined) ? 0 : c.accuracy;
-    setAccuracy(acc);
 
     if (acc > threshold) {
       session.rejected++;
@@ -141,10 +139,6 @@ var Tracker = (function () {
 
     var elev = Utils.computeElevation(session.points);
     UI.setStat(dom.ascent, elev.samples ? '+' + elev.gainM : '--', 'm');
-  }
-
-  function setAccuracy(acc) {
-    UI.setStat(dom.accuracy, acc ? Math.round(acc) : '--', 'm');
   }
 
   function setState(kind, label) {
@@ -319,7 +313,6 @@ var Tracker = (function () {
       UI.setStat(dom.avgPace, '--:--', '/km');
       UI.setStat(dom.lastPace, '--:--', '/km');
       UI.setStat(dom.speed, '0.0', 'km/h');
-      UI.setStat(dom.accuracy, '--', 'm');
       UI.setStat(dom.ascent, '--', 'm');
     };
 

@@ -126,6 +126,13 @@
 
   /* ------------------------------ settings ------------------------------ */
 
+  /** One CSS variable drives every session figure; see the #view-tracker rules. */
+  function applySessionScale(percent) {
+    var pct = Utils.clamp(parseInt(percent, 10) || 100, 100, 200);
+    document.documentElement.style.setProperty('--session-scale', (pct / 100).toFixed(2));
+    UI.setText('#scaleValue', pct + '%');
+  }
+
   /**
    * Resolve communes for runs that never got one — saved with mobile data off, or
    * imported from a backup made before this existed. Sequential with a pause between
@@ -179,6 +186,7 @@
     var accuracy = UI.$('#setAccuracy');
     var decimate = UI.$('#setDecimate');
     var placeLookup = UI.$('#setPlaceLookup');
+    var scale = UI.$('#setScale');
 
     // A focused number input eats wheel events and silently changes value while the
     // page is scrolled — which then gets persisted on `change`. Drop focus instead.
@@ -196,6 +204,8 @@
       accuracy.value = s.accuracyThresholdM;
       decimate.value = s.decimateSec;
       placeLookup.checked = !!s.placeLookup;
+      scale.value = s.sessionScale;
+      applySessionScale(s.sessionScale);
     }
 
     deezer.addEventListener('change', function () {
@@ -237,6 +247,14 @@
       Settings.set({ decimateSec: Utils.clamp(parseInt(decimate.value, 10) || 4, 1, 30) });
       load();
     });
+
+    // `input` as well as `change`: the size should follow the thumb as it is dragged,
+    // otherwise you cannot judge it without letting go.
+    scale.addEventListener('input', function () { applySessionScale(scale.value); });
+    scale.addEventListener('change', function () {
+      Settings.set({ sessionScale: Utils.clamp(parseInt(scale.value, 10) || 115, 100, 200) });
+    });
+    scale.addEventListener('wheel', function () { scale.blur(); }, { passive: true });
 
     placeLookup.addEventListener('change', function () {
       Settings.set({ placeLookup: placeLookup.checked });
@@ -287,6 +305,7 @@
   }
 
   function boot() {
+    applySessionScale(Settings.get('sessionScale'));
     initTabs();
     Tracker.init();
     initTimerView();

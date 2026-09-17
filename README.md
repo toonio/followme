@@ -54,7 +54,14 @@ consecutive points. Fixes reported with an accuracy worse than the threshold (20
 default) are discarded so a stationary phone does not accumulate drift. Live readouts:
 elapsed, distance, global average pace, trailing-60-second pace, instantaneous speed
 (`coords.speed` when the browser provides it, otherwise the last point-to-point delta)
-and current GPS accuracy.
+and ascent. The accuracy figure is not shown — it is not actionable mid-run; the saved
+run reports how many fixes were discarded instead.
+
+Their size is set in **Settings → Session display** (`--session-scale`, 100–200%,
+default 115%), scoped to the tracker so the Stats page keeps its base sizes. The grid
+reflows with the type rather than clipping it: two columns at 115% on a 375 px phone,
+dropping to one above about 120%. That is the reason the default is not higher — at 125%
+the six tiles stack and the Start/Stop buttons fall below the fold.
 
 - **Start** begins a session and requests the wake lock.
 - **Stop** ends it, computes duration/distance/pace/splits and saves the run.

@@ -12,7 +12,8 @@ var Settings = (function () {
     sound: true,
     accuracyThresholdM: 20,
     decimateSec: 4,
-    placeLookup: true
+    placeLookup: true,
+    sessionScale: 115        // percent; see the Session display hint for why not more
   };
 
   var current = load();

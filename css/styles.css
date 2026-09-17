@@ -109,6 +109,7 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   min-width: 0;
 }
 .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--fg-dim); }
+
 .stat-value {
   font-size: 20px;
   font-weight: 650;
@@ -124,6 +125,21 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
 @media (min-width: 560px) {
   .stat-grid { grid-template-columns: repeat(3, 1fr); }
   .stat-lg { grid-column: span 1; }
+}
+/* The live session figures are read at arm's length while moving, so their size is
+   the user's call (Settings → Session display). Scoped to the tracker: the Stats
+   page is read standing still and keeps the base sizes. */
+#view-tracker .stat-label { font-size: calc(11px * var(--session-scale, 1)); }
+#view-tracker .stat-value { font-size: calc(20px * var(--session-scale, 1)); }
+#view-tracker .stat-value small { font-size: calc(12px * var(--session-scale, 1)); }
+#view-tracker .stat-lg .stat-value { font-size: calc(30px * var(--session-scale, 1)); }
+#view-tracker .stat { padding: calc(10px * var(--session-scale, 1)) calc(12px * var(--session-scale, 1)); }
+/* The column count has to follow the type size, not the other way round: at 150% on a
+   phone two columns clipped "0.00 km" to "0.0…", which defeats the point of enlarging
+   it. auto-fit against a scaled minimum drops to a single column instead. min() keeps
+   the track from exceeding the container on very narrow screens. */
+#view-tracker .stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(128px * var(--session-scale, 1))), 1fr));
 }
 
 /* ------------------------------ buttons ------------------------------ */
@@ -381,6 +397,14 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   width: 100%;
 }
 .field input:focus { outline: 2px solid var(--accent-dim); outline-offset: -1px; }
+.field input[type="range"] {
+  padding: 0;
+  height: 34px;
+  background: transparent;
+  border: 0;
+  accent-color: var(--accent);
+}
+.field > span b { color: var(--fg); font-variant-numeric: tabular-nums; }
 .field-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .sound-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

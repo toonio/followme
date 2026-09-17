@@ -47,10 +47,6 @@
           <span class="stat-value" id="statSpeed">0.0 <small>km/h</small></span>
         </div>
         <div class="stat">
-          <span class="stat-label">GPS accuracy</span>
-          <span class="stat-value" id="statAccuracy">-- <small>m</small></span>
-        </div>
-        <div class="stat">
           <span class="stat-label">Ascent</span>
           <span class="stat-value" id="statAscent">-- <small>m</small></span>
         </div>
@@ -150,6 +146,15 @@
 
   <!-- ============================= SETTINGS ============================ -->
   <section class="view" id="view-settings" data-view="settings" hidden>
+    <div class="card">
+      <div class="card-head"><h2>Session display</h2></div>
+      <label class="field">
+        <span>Session data size &mdash; <b id="scaleValue">115%</b></span>
+        <input type="range" id="setScale" min="100" max="200" step="5" autocomplete="off">
+      </label>
+      <p class="hint">How large the live figures on the Tracker page are drawn. The change applies as you drag, so flip to Tracker and check before you head out. Past about 120% on a phone the six tiles stack into one column and the Start/Stop buttons fall below the fold &mdash; readable from further away, but you have to scroll to reach them mid-run.</p>
+    </div>
+
     <div class="card">
       <div class="card-head"><h2>Deezer playlist</h2></div>
       <label class="field">
