@@ -234,6 +234,23 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+.speed-chart {
+  margin-top: 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  cursor: crosshair;
+}
+.speed-chart:focus-visible { border-color: var(--accent-dim); outline: none; }
+.speed-chart svg { width: 100%; height: auto; display: block; }
+.route-readout {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--fg-dim);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.route-readout.is-selected { color: var(--fg); font-weight: 600; }
 
 /* ------------------------------- timer ------------------------------- */
 .timer-display { text-align: center; padding: 6px 0 12px; }

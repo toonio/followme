@@ -110,12 +110,14 @@ var UI = (function () {
   /* ------------------------------- routes ------------------------------ */
 
   /* Speed is a magnitude, so it takes a sequential ramp: ONE hue, monotone
-     lightness, slow → fast. Steps 550/450/350/200/100 of the blue ramp, chosen
-     against this app's own surface (#1c232c) rather than by eye — the darkest step
-     still clears 2.39:1, so the slowest stretches stay visible instead of sinking
-     into the background, and every adjacent pair clears ΔL 0.06 so the steps read
-     apart. Five bins is also as much as a legend can label honestly. */
-  var SPEED_RAMP = ['#1c5cab', '#2a78d6', '#5598e7', '#9ec5f4', '#cde2fb'];
+     lightness, light → dark as speed rises. Steps 100/200/350/450/550 of the blue
+     ramp, chosen against this app's own surface (#1c232c) rather than by eye and
+     re-validated in this direction — the darkest step still clears 2.39:1 and every
+     adjacent pair clears ΔL 0.06, so all five read apart. Note the consequence of
+     running dark-is-fast on a dark surface: the fastest stretches sit at 2.39:1
+     while the slowest glow at 11.96:1, the reverse of the usual dark-mode anchoring.
+     Five bins is also as much as a legend can label honestly. */
+  var SPEED_RAMP = ['#cde2fb', '#9ec5f4', '#5598e7', '#2a78d6', '#1c5cab'];
   var MIN_SPEED_SPAN_MPS = 0.5;   // don't stretch a steady run across the whole ramp
 
   /** Per-segment speed in m/s, one entry per gap between stored points. */
@@ -254,6 +256,7 @@ var UI = (function () {
     }
 
     root.__speedDomain = domain;
+    root.__project = function (p) { return { x: px(p), y: py(p) }; };
     return root;
   }
 
@@ -271,78 +274,12 @@ var UI = (function () {
     return el('div', { class: 'legend' }, [scale, labels]);
   }
 
-  /**
-   * Clickable route preview: the trace, its legend, and a tap target that opens
-   * the full-size version.
-   */
-  function routeFigure(run, opts) {
-    var points = run && run.points;
-    if (!points || points.length < 2) return null;
-    var o = opts || {};
-    var chart = routeSvg(points, { width: 320, height: 150, strokeWidth: 3, markerRadius: 4 });
-    if (!chart) return null;
-
-    var button = el('button', {
-      class: 'route-figure',
-      type: 'button',
-      'aria-label': 'Enlarge route trace',
-      onclick: function () { showRouteModal(run); }
-    }, [chart, routeLegend(chart.__speedDomain)]);
-
-    var wrap = el('div', { class: 'route-preview' }, [button]);
-    if (o.hint !== false) {
-      wrap.appendChild(el('p', { class: 'route-hint', text: 'Tap the trace to enlarge' }));
-    }
-    return wrap;
-  }
-
-  /** Full-size route, sized to the viewport. */
-  function showRouteModal(run) {
-    var modal = $('#mapModal');
-    var body = $('#mapModalBody');
-    clear(body);
-
-    // A taller frame than the thumbnail: the trace gets the room, the legend sits under it.
-    var chart = routeSvg(run.points, { width: 640, height: 440, strokeWidth: 4.5, markerRadius: 7, labelEnds: true });
-    if (!chart) return;
-
-    var title = Utils.formatDateTime(run.date);
-    if (run.place && run.place.commune) title += ' · ' + run.place.commune;
-    setText('#mapModalTitle', title);
-
-    body.appendChild(el('div', { class: 'route-big' }, [chart]));
-    body.appendChild(routeLegend(chart.__speedDomain));
-
-    var facts = [
-      Utils.formatKm(run.distanceMeters) + ' km',
-      Utils.formatDuration(run.durationSec),
-      Utils.formatPace(run.avgPaceSecPerKm) + ' /km'
-    ];
-    if (run.elevationGainM) facts.push('+' + run.elevationGainM + ' m');
-    body.appendChild(el('p', { class: 'route-facts', text: facts.join(' · ') }));
-
-    function close() {
-      modal.hidden = true;
-      modal.removeEventListener('click', onBackdrop);
-      document.removeEventListener('keydown', onKey);
-    }
-    function onBackdrop(ev) { if (ev.target === modal) close(); }
-    function onKey(ev) { if (ev.key === 'Escape') close(); }
-
-    $('#mapModalClose').onclick = close;
-    modal.hidden = false;
-    modal.addEventListener('click', onBackdrop);
-    document.addEventListener('keydown', onKey);
-    $('#mapModalClose').focus();
-  }
-
   return {
     $: $, $$: $$, el: el, svg: svg, clear: clear,
     setText: setText, setStat: setStat,
     message: message, ask: ask, confirm: confirm,
-    routeSvg: routeSvg, routeFigure: routeFigure, routeLegend: routeLegend,
-    showRouteModal: showRouteModal,
+    routeSvg: routeSvg, routeLegend: routeLegend,
     segmentSpeeds: segmentSpeeds, speedDomain: speedDomain, speedColor: speedColor,
-    SPEED_RAMP: SPEED_RAMP
+    paceLabel: paceLabel, SPEED_RAMP: SPEED_RAMP
   };
 })();

@@ -33,7 +33,8 @@ count as secure for local testing).
 | `js/settings.js` | Config in `localStorage` |
 | `js/db.js` | IndexedDB run store (falls back to `localStorage`) |
 | `js/geocode.js` | Reverse geocoding: coordinate to commune name |
-| `js/ui.js` | DOM helpers, modal, route-preview SVG |
+| `js/ui.js` | DOM helpers, modal, route SVG and the speed ramp |
+| `js/routeview.js` | Route thumbnail and the linked map + speed chart |
 | `js/wakelock.js` | Reference-counted Screen Wake Lock |
 | `js/timer.js` | Interval timer + Web Audio beeps |
 | `js/tracker.js` | GPS session, live stats, persistence |
@@ -120,20 +121,33 @@ route trace.
 **Route trace** — the stored trace is drawn coloured by speed, segment by segment, from
 the time and distance between consecutive stored points. Decimation is not a problem
 here: points sit a few seconds apart, which is a longer baseline than a single fix and
-therefore a *steadier* speed estimate than raw fixes would give. Tap the trace (or focus
-it and press Enter) to open it full size with `Start`/`Finish` labelled and the run's
-figures underneath.
+therefore a *steadier* speed estimate than raw fixes would give.
+
+Tap the trace (or focus it and press Enter) to open the enlarged view: the map with
+`Start`/`Finish` labelled, and a **speed chart** underneath. The two are projections of
+the same samples — click anywhere on the chart (or use ← →) and the picked sample gets a
+rule and a dot on the chart, a ring on the map, and a readout of its time, distance,
+speed and pace. The chart is a plain line in the app's accent, not the ramp: the y
+position already says how fast, so colouring it too would re-encode what the shape shows.
+Both viewBoxes shrink on narrow screens, otherwise a 640-wide viewBox squeezed into a
+300px phone renders 10px type at under 5px.
 
 The colour is a sequential encoding, so it follows the rule for one: a single hue,
-monotone lightness, slow → fast — never a rainbow. The five steps are blue 550/450/350/
-200/100, chosen against this app's own surface rather than by eye, and checked with the
-palette validator: the darkest step clears 2.39:1 on `#1c232c`, so the slowest stretches
-stay visible instead of sinking into the background, and every adjacent pair clears
-ΔL 0.06 so the steps read apart. The scale is clipped to the run's 5th–95th percentile
-so one GPS glitch cannot own both ends, and a minimum span stops a steady run from being
-stretched across the whole ramp to display noise as variation. The legend is labelled in
-pace at both ends, and start/finish are marked by *shape*, not colour — the colour
-channel is spoken for.
+monotone lightness — never a rainbow. The five steps are blue 100/200/350/450/550 running
+**light = slow → dark = fast**, chosen against this app's own surface rather than by eye
+and checked with the palette validator: the darkest step clears 2.39:1 on `#1c232c`, and
+every adjacent pair clears ΔL 0.06, so all five read apart.
+
+Be aware of what that direction costs on a dark surface: the *fastest* stretches sit at
+2.39:1 while the slowest glow at 11.96:1, so the eye is drawn to the slow parts — the
+reverse of the usual dark-mode anchoring, where magnitude rises toward the brighter end.
+On a test run where 43 of 65 segments were fast, the 21 slow ones still dominated the
+picture. Swap `SPEED_RAMP` in `js/ui.js` to flip it back.
+
+The scale is clipped to the run's 5th–95th percentile so one GPS glitch cannot own both
+ends, and a minimum span stops a steady run from being stretched across the whole ramp to
+display noise as variation. The legend is labelled in pace at both ends, and start/finish
+are marked by *shape*, not colour — the colour channel is spoken for.
 
 **Backup** — export writes every run to one JSON file; import reads it back and offers
 *merge* (dedupe by `id`, existing runs kept) or *replace all*. Since there is no server,

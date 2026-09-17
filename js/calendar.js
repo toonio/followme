@@ -119,7 +119,7 @@ var Calendar = (function () {
       });
       block.appendChild(grid);
 
-      var route = UI.routeFigure(r);
+      var route = RouteView.figure(r);
       if (route) block.appendChild(route);
 
       if (r.splits && r.splits.length) {

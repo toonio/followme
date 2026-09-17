@@ -298,7 +298,7 @@ var Tracker = (function () {
     });
 
     UI.clear(dom.summaryRoute);
-    var route = UI.routeFigure(run);
+    var route = RouteView.figure(run);
     if (route) dom.summaryRoute.appendChild(route);
 
     dom.summary.hidden = false;
