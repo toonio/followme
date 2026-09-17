@@ -58,10 +58,17 @@ and ascent. The accuracy figure is not shown — it is not actionable mid-run; t
 run reports how many fixes were discarded instead.
 
 Their size is set in **Settings → Session display** (`--session-scale`, 100–200%,
-default 115%), scoped to the tracker so the Stats page keeps its base sizes. The grid
-reflows with the type rather than clipping it: two columns at 115% on a 375 px phone,
-dropping to one above about 120%. That is the reason the default is not higher — at 125%
-the six tiles stack and the Start/Stop buttons fall below the fold.
+default 115%), scoped to the tracker so the Stats page keeps its base sizes.
+
+The grid reflows with the type rather than clipping it. The column minimum is derived
+from the widest value the tracker can show — elapsed past an hour, `1:07:32`, which
+measures 103 px per 100% of scale — so two columns survive exactly as long as that value
+fits, and the grid drops to one when it stops fitting. Tabular figures mean a 3-hour run
+is no wider than a 1-hour one. On a phone the page, card, gap and tile padding are
+trimmed (8/8/6/8 px against 14/14/10/12) to buy that width back: on a 393 px screen —
+a 1080 px panel at 2.75× — **150% still holds two columns**, with 161 px of text room
+against the 154 px needed, and the Start/Stop buttons stay above the fold. 155% and up
+stack into one column. Above 480 px the original spacing is untouched.
 
 - **Start** begins a session and requests the wake lock.
 - **Stop** ends it, computes duration/distance/pace/splits and saves the run.

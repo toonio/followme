@@ -133,13 +133,31 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
 #view-tracker .stat-value { font-size: calc(20px * var(--session-scale, 1)); }
 #view-tracker .stat-value small { font-size: calc(12px * var(--session-scale, 1)); }
 #view-tracker .stat-lg .stat-value { font-size: calc(30px * var(--session-scale, 1)); }
-#view-tracker .stat { padding: calc(10px * var(--session-scale, 1)) calc(12px * var(--session-scale, 1)); }
-/* The column count has to follow the type size, not the other way round: at 150% on a
-   phone two columns clipped "0.00 km" to "0.0…", which defeats the point of enlarging
-   it. auto-fit against a scaled minimum drops to a single column instead. min() keeps
-   the track from exceeding the container on very narrow screens. */
+/* Horizontal padding stays fixed while the type scales — scaling it too is what ate
+   the width that the numbers needed. Vertical padding still follows the type. */
+#view-tracker .stat { padding: calc(8px * var(--session-scale, 1)) var(--stat-pad); }
+
+/* The column count follows the type size, not the other way round: two columns that
+   clip "12.48 km" defeat the point of enlarging it. The minimum is derived from the
+   widest value the tracker can show — elapsed past an hour, "1:07:32", measured at
+   103px per 100% of scale, carried at 107 for a little font-metric slack — plus the
+   tile's own padding. So the grid keeps two columns for exactly as long as that value
+   fits and drops to one when it stops fitting, instead of clipping. Tabular figures
+   make every h:mm:ss the same width, so a 3-hour run is no wider than a 1-hour one.
+   min() keeps the track from exceeding the container on very narrow screens. */
 #view-tracker .stat-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(128px * var(--session-scale, 1))), 1fr));
+  --stat-pad: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(
+    min(100%, calc(107px * var(--session-scale, 1) + 2 * var(--stat-pad))), 1fr));
+}
+
+/* Phone: buy the numbers back the space the chrome was holding. Trimming the page,
+   card, gap and tile padding frees ~34px of text width per column, which is what lets
+   150% stay two columns on a 393px screen instead of stacking. */
+@media (max-width: 480px) {
+  main { padding: 8px; }
+  #view-tracker .card { padding: 8px; }
+  #view-tracker .stat-grid { --stat-pad: 8px; gap: 6px; }
 }
 
 /* ------------------------------ buttons ------------------------------ */
