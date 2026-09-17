@@ -98,6 +98,27 @@ var UI = (function () {
     ]).then(function (v) { return v === true; });
   }
 
+  /* Android's URL bar plus a bottom toolbar comes to roughly 112px; a soft keyboard
+     is never under ~250. Anything past this is a keyboard, not chrome. */
+  var CHROME_GAP_MAX = 180;
+
+  /**
+   * How much of the layout viewport currently sits below the visible (visual)
+   * viewport — i.e. how far a `position: fixed; bottom: 0` element is pushed out of
+   * sight by browser chrome. Pure, so it can be checked without a real browser.
+   *
+   * Returns 0 for a keyboard-sized gap on purpose: correcting for that would fling
+   * the tab bar up to sit on top of the keyboard, over the field being typed into.
+   * Left uncorrected it stays at the bottom of the page, behind the keyboard, which
+   * is where it has always been and where it is wanted.
+   */
+  function viewportGap(layoutHeight, vv) {
+    if (!vv || !isFinite(vv.height)) return 0;
+    var visibleBottom = (vv.offsetTop || 0) + vv.height;
+    var gap = Math.max(0, Math.round(layoutHeight - visibleBottom));
+    return gap > CHROME_GAP_MAX ? 0 : gap;
+  }
+
   var SVG_NS = 'http://www.w3.org/2000/svg';
   function svg(tag, attrs) {
     var node = document.createElementNS(SVG_NS, tag);
@@ -278,6 +299,7 @@ var UI = (function () {
     $: $, $$: $$, el: el, svg: svg, clear: clear,
     setText: setText, setStat: setStat,
     message: message, ask: ask, confirm: confirm,
+    viewportGap: viewportGap,
     routeSvg: routeSvg, routeLegend: routeLegend,
     segmentSpeeds: segmentSpeeds, speedDomain: speedDomain, speedColor: speedColor,
     paceLabel: paceLabel, SPEED_RAMP: SPEED_RAMP

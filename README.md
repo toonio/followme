@@ -170,6 +170,15 @@ this file is the only backup and the only way to move data between devices or br
 **Music** — the Deezer playlist widget is embedded on the Tracker page so it stays
 reachable mid-run. Set the playlist ID (or paste a playlist URL) in Settings.
 
+**The bottom bar and the URL bar** — Chrome on Android anchors `position: fixed` to the
+*layout* viewport, which keeps the height it has with the URL bar hidden. Scroll up, the
+URL bar slides back in, the visible area shrinks, and a `bottom: 0` bar is left sitting
+below it with only its top half showing. The Visual Viewport API reports that gap;
+`js/app.js` publishes it as `--chrome-gap`, and the tab bar lifts by it while the
+full-screen dialogs — clipped by the same chrome — inset by it. A keyboard-sized gap
+(over 180 px) is deliberately ignored: correcting for it would fling the tab bar up onto
+the keyboard, over the field being typed into.
+
 ## Known limitations
 
 - Wake lock is reliable on Chrome/Chromium for Android; iOS Safari support is

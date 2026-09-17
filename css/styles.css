@@ -240,7 +240,7 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
 .legend-mid { text-transform: uppercase; letter-spacing: .5px; }
 
 /* Enlarged route */
-.map-modal { align-items: stretch; padding: 12px; }
+.map-modal { align-items: stretch; padding: 12px; padding-bottom: calc(12px + var(--chrome-gap, 0px)); }
 .map-modal-box {
   background: var(--bg-card);
   border: 1px solid var(--line);
@@ -451,6 +451,11 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
+  /* --chrome-gap is how far the layout viewport extends below the visible one when
+     the browser's URL bar slides in; without this the bar sits under it, showing only
+     its top half. No transition: it must track the URL bar, not trail it. */
+  transform: translateY(calc(-1 * var(--chrome-gap, 0px)));
+  will-change: transform;
 }
 .tab {
   flex: 1 1 0;
@@ -480,6 +485,8 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   align-items: center;
   justify-content: center;
   padding: 20px;
+  /* Same correction as the tab bar: keep the box inside the *visible* viewport. */
+  padding-bottom: calc(20px + var(--chrome-gap, 0px));
 }
 .modal-box {
   background: var(--bg-card);

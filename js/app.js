@@ -296,6 +296,42 @@
     });
   }
 
+  /* ------------------------------- viewport ------------------------------ */
+
+  /**
+   * Chrome on Android anchors `position: fixed` to the LAYOUT viewport, which keeps
+   * the height it has with the URL bar hidden. Scroll up, the URL bar slides back in,
+   * the visible area shrinks from the bottom, and the tab bar is left sitting below
+   * it — showing only its top half. The visual viewport reports that gap, so lift the
+   * bar by it and it stays put whichever way you scroll.
+   */
+  function initViewportPinning() {
+    var vv = window.visualViewport;
+    if (!vv) return;                  // no API: nothing to correct with
+
+    var queued = false;
+    var last = null;
+    function sync() {
+      queued = false;
+      var gap = UI.viewportGap(document.documentElement.clientHeight, vv);
+      if (gap === last) return;
+      last = gap;
+      // Published as a variable rather than set inline: the tab bar lifts by it and
+      // the full-screen dialogs, clipped by the same chrome, inset by it.
+      document.documentElement.style.setProperty('--chrome-gap', gap + 'px');
+    }
+    function schedule() {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(sync);
+    }
+
+    vv.addEventListener('resize', schedule);
+    vv.addEventListener('scroll', schedule);
+    window.addEventListener('orientationchange', schedule);
+    sync();
+  }
+
   /* -------------------------------- boot -------------------------------- */
 
   function updateStorageBadge() {
@@ -306,6 +342,7 @@
 
   function boot() {
     applySessionScale(Settings.get('sessionScale'));
+    initViewportPinning();
     initTabs();
     Tracker.init();
     initTimerView();
