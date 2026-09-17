@@ -114,8 +114,26 @@ buckets, plus ascent. Below the chart, a per-bucket table and the recent-run lis
 (with commune, D+ and delete).
 
 **Calendar** — Monday-first month grid, a distance badge on every day with a run, today
-outlined. Tap a day for its runs: time, distance, duration, pace, per-km splits and a
-route preview drawn from the stored trace.
+outlined. Tap a day for its runs: time, distance, duration, pace, per-km splits and the
+route trace.
+
+**Route trace** — the stored trace is drawn coloured by speed, segment by segment, from
+the time and distance between consecutive stored points. Decimation is not a problem
+here: points sit a few seconds apart, which is a longer baseline than a single fix and
+therefore a *steadier* speed estimate than raw fixes would give. Tap the trace (or focus
+it and press Enter) to open it full size with `Start`/`Finish` labelled and the run's
+figures underneath.
+
+The colour is a sequential encoding, so it follows the rule for one: a single hue,
+monotone lightness, slow → fast — never a rainbow. The five steps are blue 550/450/350/
+200/100, chosen against this app's own surface rather than by eye, and checked with the
+palette validator: the darkest step clears 2.39:1 on `#1c232c`, so the slowest stretches
+stay visible instead of sinking into the background, and every adjacent pair clears
+ΔL 0.06 so the steps read apart. The scale is clipped to the run's 5th–95th percentile
+so one GPS glitch cannot own both ends, and a minimum span stops a steady run from being
+stretched across the whole ramp to display noise as variation. The legend is labelled in
+pace at both ends, and start/finish are marked by *shape*, not colour — the colour
+channel is spoken for.
 
 **Backup** — export writes every run to one JSON file; import reads it back and offers
 *merge* (dedupe by `id`, existing runs kept) or *replace all*. Since there is no server,

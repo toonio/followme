@@ -119,10 +119,8 @@ var Calendar = (function () {
       });
       block.appendChild(grid);
 
-      var route = UI.routeSvg(r.points, { width: 320, height: 150 });
-      if (route) {
-        block.appendChild(UI.el('div', { class: 'route-preview' }, [route]));
-      }
+      var route = UI.routeFigure(r);
+      if (route) block.appendChild(route);
 
       if (r.splits && r.splits.length) {
         var splits = UI.el('div', { class: 'splits' });
