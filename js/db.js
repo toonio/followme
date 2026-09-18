@@ -4,9 +4,12 @@ var DB = (function () {
   'use strict';
 
   var DB_NAME = 'running-tracker';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;              // v2 adds the `live` store for crash recovery
   var STORE = 'runs';
+  var LIVE_STORE = 'live';
+  var LIVE_KEY = 'current';
   var LS_KEY = 'runningTracker.runs';
+  var LS_LIVE_KEY = 'runningTracker.live';
 
   var backend = null;   // 'indexeddb' | 'localstorage'
   var dbPromise = null;
@@ -16,9 +19,14 @@ var DB = (function () {
       var req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = function (ev) {
         var db = ev.target.result;
+        // Guarded rather than versioned branches, so upgrading from v1 keeps the
+        // existing runs and only adds what is missing.
         if (!db.objectStoreNames.contains(STORE)) {
           var store = db.createObjectStore(STORE, { keyPath: 'id' });
           store.createIndex('date', 'date', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(LIVE_STORE)) {
+          db.createObjectStore(LIVE_STORE, { keyPath: 'id' });
         }
       };
       req.onsuccess = function () { resolve(req.result); };
@@ -48,6 +56,10 @@ var DB = (function () {
 
   function tx(db, mode) {
     return db.transaction(STORE, mode).objectStore(STORE);
+  }
+
+  function tx2(db, store, mode) {
+    return db.transaction(store, mode).objectStore(store);
   }
 
   function reqToPromise(req) {
@@ -157,6 +169,55 @@ var DB = (function () {
     });
   }
 
+  /* --------------------------- live session ---------------------------- */
+  /* A run in progress is checkpointed here so a killed tab cannot take it with it.
+     Separate store: it is transient, must never appear in stats or exports, and is
+     written far more often than a finished run. */
+
+  function saveLive(record) {
+    record.id = LIVE_KEY;
+    return ready().then(function (db) {
+      if (!db) {
+        try { localStorage.setItem(LS_LIVE_KEY, JSON.stringify(record)); } catch (e) { /* quota */ }
+        return;
+      }
+      return new Promise(function (resolve, reject) {
+        var t = db.transaction(LIVE_STORE, 'readwrite');
+        t.objectStore(LIVE_STORE).put(record);
+        t.oncomplete = resolve;
+        t.onerror = function () { reject(t.error); };
+        t.onabort = function () { reject(t.error || new Error('Checkpoint aborted')); };
+      });
+    });
+  }
+
+  function loadLive() {
+    return ready().then(function (db) {
+      if (!db) {
+        try {
+          var raw = localStorage.getItem(LS_LIVE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+      }
+      return reqToPromise(tx2(db, LIVE_STORE, 'readonly').get(LIVE_KEY));
+    }).catch(function () { return null; });
+  }
+
+  function clearLive() {
+    return ready().then(function (db) {
+      if (!db) {
+        try { localStorage.removeItem(LS_LIVE_KEY); } catch (e) { /* ignore */ }
+        return;
+      }
+      return new Promise(function (resolve, reject) {
+        var t = db.transaction(LIVE_STORE, 'readwrite');
+        t.objectStore(LIVE_STORE).delete(LIVE_KEY);
+        t.oncomplete = resolve;
+        t.onerror = function () { reject(t.error); };
+      });
+    }).catch(function () { /* nothing to clear */ });
+  }
+
   /** Replace the whole store with the given runs (used by "replace all" import). */
   function replaceAll(runs) {
     return clear().then(function () { return putMany(runs); });
@@ -173,6 +234,9 @@ var DB = (function () {
     remove: remove,
     clear: clear,
     replaceAll: replaceAll,
+    saveLive: saveLive,
+    loadLive: loadLive,
+    clearLive: clearLive,
     backendName: backendName
   };
 })();

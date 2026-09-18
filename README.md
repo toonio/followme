@@ -31,7 +31,7 @@ count as secure for local testing).
 | `css/styles.css` | Dark, mobile-first styling |
 | `js/utils.js` | Haversine, formatting, ISO week/month keys, Douglas-Peucker, splits |
 | `js/settings.js` | Config in `localStorage` |
-| `js/db.js` | IndexedDB run store (falls back to `localStorage`) |
+| `js/db.js` | IndexedDB run store + live-session checkpoints (falls back to `localStorage`) |
 | `js/geocode.js` | Reverse geocoding: coordinate to commune name |
 | `js/ui.js` | DOM helpers, modal, route SVG and the speed ramp |
 | `js/routeview.js` | Route thumbnail and the linked map + speed chart |
@@ -73,6 +73,24 @@ stack into one column. Above 480 px the original spacing is untouched.
 - **Start** begins a session and requests the wake lock.
 - **Stop** ends it, computes duration/distance/pace/splits and saves the run.
 - **New** discards the in-memory session (with a confirmation) and resets the view.
+
+**A run in progress survives the app dying.** It is checkpointed to its own IndexedDB
+store every 10 seconds, and — the case that actually matters — the moment the page is
+hidden, frozen or unloaded, which is what a mistouch, an incoming call or the system
+reclaiming memory looks like. The worst a hard kill can cost is the last 10 seconds.
+Nothing about this is configurable; it is not a feature to opt into.
+
+On the next launch an unfinished run is offered back: **Resume** picks up tracking where
+it left off, **Save it** files it as a finished run, **Discard** deletes it behind a
+confirmation. Dismissing the dialog keeps the checkpoint, so a stray tap cannot lose the
+run either — the offer simply returns next time.
+
+Resuming treats the dead stretch as a **pause**, not as running time. Elapsed is
+therefore accumulated active seconds rather than wall-clock since Start: there is no GPS
+behind the gap, so counting it would stretch the duration and flatten the pace with data
+that does not exist. The dialog says how long ago the last checkpoint was, since that is
+the fact that decides whether you are still out running or looking at this the next
+morning.
 
 The live trace is kept at full resolution in memory so the rolling-window pace stays
 honest; only a decimated trace is written to storage — one point every N seconds
@@ -193,8 +211,9 @@ the keyboard, over the field being typed into.
 - No PWA: no manifest, no service worker (Tier 0, per the spec). Tracking, storage, wake
   lock and the timer all keep working offline once the page is loaded, because none of
   them touch the network.
-- Reloading or closing the tab mid-session loses that session (the browser shows a
-  confirmation prompt first).
+- A hard kill can still cost the last few seconds of a run — up to the 10-second
+  checkpoint interval, less if the browser gave the page a chance to run its hide
+  handler. The `beforeunload` prompt is kept as a second line of defence.
 - GPS altitude is the weak input behind D+. The filtering above keeps it sane, but treat
   the number as an estimate: expect it to run low on gently rolling ground, and to differ
   from what a barometric watch reports.

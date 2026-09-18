@@ -332,6 +332,48 @@
     sync();
   }
 
+  /* ------------------------------ recovery ------------------------------ */
+
+  /**
+   * A session that was never stopped is offered back on the next launch. Asked rather
+   * than resumed silently: only the user knows whether they are still out running or
+   * looking at this the next morning, and the gap since the last checkpoint is the
+   * fact that decides it — so it is put in front of them.
+   */
+  function offerRecovery() {
+    return Tracker.pendingRecovery().then(function (record) {
+      if (!record) return;
+
+      var gapSec = Math.max(0, (Date.now() - record.savedAt) / 1000);
+      var gapText = gapSec < 90
+        ? 'a moment ago'
+        : Utils.formatDuration(gapSec) + ' ago';
+
+      return UI.ask('Unfinished run',
+        Utils.formatKm(record.distance) + ' km in ' + Utils.formatDuration(record.elapsedSec) +
+        ', last saved ' + gapText + '. Resuming carries on from there and counts the gap ' +
+        'as a pause, since there is no GPS behind it.',
+        [
+          { label: 'Discard', value: 'discard', class: 'btn-ghost' },
+          { label: 'Save it', value: 'finish', class: '' },
+          { label: 'Resume', value: 'resume', class: 'btn-primary' }
+        ]).then(function (choice) {
+          if (choice === 'resume') return Tracker.resume(record);
+          if (choice === 'finish') return Tracker.finishRecovered(record);
+          if (choice === 'discard') {
+            return UI.confirm('Discard the run?',
+              Utils.formatKm(record.distance) + ' km will be deleted and cannot be recovered.',
+              'Discard').then(function (ok) {
+                // Dismissing the confirm leaves the checkpoint alone, so the offer
+                // comes back next launch rather than the run disappearing on a stray tap.
+                if (ok) return Tracker.discardRecovery();
+              });
+          }
+          // Dismissed without choosing: keep the checkpoint and ask again next time.
+        });
+    }).catch(function () { /* never let recovery block the app from starting */ });
+  }
+
   /* -------------------------------- boot -------------------------------- */
 
   function updateStorageBadge() {
@@ -361,7 +403,7 @@
       updateStorageBadge();
       // Warm the caches so the first visit to Stats/Calendar is instant.
       return Stats.refresh();
-    });
+    }).then(offerRecovery);
 
     showTab('tracker');
   }

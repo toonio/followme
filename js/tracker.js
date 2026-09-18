@@ -6,10 +6,15 @@ var Tracker = (function () {
 
   var UI_TICK_MS = 500;
   var LAST_WINDOW_SEC = 60;
+  var CHECKPOINT_MS = 10000;   // worst case lost to a kill: ten seconds of running
+  var ACQUIRING = 'Acquiring GPS…';
 
   var session = null;   // active in-memory run
   var watchId = null;
   var tickId = null;
+  var checkpointId = null;
+  var checkpointing = false;
+  var checkpointQueued = false;
   var lastSaved = null;
 
   var dom = {};
@@ -34,8 +39,10 @@ var Tracker = (function () {
   function newSession() {
     return {
       id: Utils.uuid(),
-      startTs: Date.now(),
-      points: [],       // {lat,lng,alt,t,acc,cum}
+      startTs: Date.now(),      // wall clock of the original Start — the run's date
+      elapsedBase: 0,           // active seconds banked by earlier segments
+      segmentStartTs: Date.now(),
+      points: [],               // {lat,lng,alt,t,acc,cum}, t = active seconds
       distance: 0,
       lastFix: null,
       instantSpeed: 0,
@@ -44,8 +51,15 @@ var Tracker = (function () {
     };
   }
 
+  /**
+   * Active seconds, not wall-clock since Start. The two differ after a recovery: the
+   * stretch where the app was dead has no GPS behind it, so counting it as running
+   * time would stretch the duration and flatten the pace with a gap we know nothing
+   * about. It is banked as a pause instead.
+   */
   function elapsedSec() {
-    return session ? (Date.now() - session.startTs) / 1000 : 0;
+    if (!session) return 0;
+    return session.elapsedBase + (Date.now() - session.segmentStartTs) / 1000;
   }
 
   /* ------------------------------ geolocation --------------------------- */
@@ -64,7 +78,7 @@ var Tracker = (function () {
       return;
     }
 
-    var t = Math.max(0, (pos.timestamp - session.startTs) / 1000);
+    var t = Math.max(0, session.elapsedBase + (pos.timestamp - session.segmentStartTs) / 1000);
     var point = {
       lat: c.latitude,
       lng: c.longitude,
@@ -152,6 +166,119 @@ var Tracker = (function () {
     dom.btnNew.disabled = !active && !lastSaved;
   }
 
+  /* ----------------------------- crash safety --------------------------- */
+
+  /**
+   * Write the session to storage. Called on a timer, and — more importantly — the
+   * moment the page is hidden or being torn down, which is when a mistouch, an
+   * incoming call or the system reclaiming memory would otherwise take the run with
+   * it. The whole raw trace goes in: a recovered run should be as good as one that
+   * was never interrupted.
+   */
+  function checkpoint() {
+    if (!session) return Promise.resolve();
+    if (checkpointing) {
+      // A write is already in flight. Never drop this request — the one that gets
+      // dropped is the `visibilitychange` checkpoint, the one the whole feature
+      // exists for. Queue a follow-up instead so the final state always lands.
+      checkpointQueued = true;
+      return Promise.resolve();
+    }
+    checkpointing = true;
+
+    // `points` is copied, not referenced: the write completes a tick or more later,
+    // and a live array would keep growing in the meantime, storing a trace that does
+    // not match the distance and duration recorded beside it.
+    var record = {
+      runId: session.id,
+      startTs: session.startTs,
+      elapsedSec: elapsedSec(),
+      distance: session.distance,
+      points: session.points.slice(),
+      fixes: session.fixes,
+      rejected: session.rejected,
+      savedAt: Date.now()
+    };
+
+    return DB.saveLive(record)
+      .catch(function () { /* a failed checkpoint must never disturb the run */ })
+      .then(function () {
+        checkpointing = false;
+        if (checkpointQueued) {
+          checkpointQueued = false;
+          return checkpoint();
+        }
+      });
+  }
+
+  /** Anything worth offering back to the user? */
+  function isRecoverable(record) {
+    if (!record || !record.savedAt) return false;
+    return (record.points && record.points.length >= 2) || record.elapsedSec >= 15;
+  }
+
+  /** The stored checkpoint, if there is one worth resuming. */
+  function pendingRecovery() {
+    return DB.loadLive().then(function (record) {
+      if (!record) return null;
+      if (!isRecoverable(record)) {           // a stray Start with nothing behind it
+        DB.clearLive();
+        return null;
+      }
+      return record;
+    });
+  }
+
+  /** Rebuild the in-memory session from a checkpoint and carry on tracking. */
+  function resume(record) {
+    if (session) return;
+    session = {
+      id: record.runId || Utils.uuid(),
+      startTs: record.startTs || Date.now(),
+      elapsedBase: record.elapsedSec || 0,   // the dead stretch counts as a pause
+      segmentStartTs: Date.now(),
+      points: (record.points || []).slice(),
+      distance: record.distance || 0,
+      lastFix: null,
+      instantSpeed: 0,
+      fixes: record.fixes || 0,
+      rejected: record.rejected || 0
+    };
+    lastSaved = null;
+    dom.summary.hidden = true;
+    UI.message(dom.msg, 'Run recovered — ' + Utils.formatKm(session.distance) + ' km at ' +
+      Utils.formatDuration(session.elapsedBase) + ' carried over. Tracking again.', 'ok', 12000);
+    beginWatching();
+  }
+
+  /** Finish a checkpointed run without resuming it, as if Stop had been pressed. */
+  function finishRecovered(record) {
+    var s = {
+      id: record.runId || Utils.uuid(),
+      startTs: record.startTs || Date.now(),
+      elapsedBase: record.elapsedSec || 0,
+      segmentStartTs: Date.now(),            // banks zero extra time
+      points: (record.points || []).slice(),
+      distance: record.distance || 0,
+      fixes: record.fixes || 0,
+      rejected: record.rejected || 0
+    };
+    var run = finalize(s);
+    return DB.put(run).then(function () {
+      DB.clearLive();
+      lastSaved = run;
+      dom.btnNew.disabled = false;
+      showSummary(run, s);
+      UI.message(dom.msg, 'Recovered run saved — ' + Utils.formatKm(run.distanceMeters) +
+        ' km in ' + Utils.formatDuration(run.durationSec) + '.', 'ok', 9000);
+      return run;
+    });
+  }
+
+  function discardRecovery() {
+    return DB.clearLive();
+  }
+
   /* ------------------------------ lifecycle ----------------------------- */
 
   function start() {
@@ -164,7 +291,12 @@ var Tracker = (function () {
     session = newSession();
     lastSaved = null;
     dom.summary.hidden = true;
-    UI.message(dom.msg, 'Acquiring GPS…');
+    UI.message(dom.msg, ACQUIRING);
+    beginWatching();
+  }
+
+  /** Everything a session needs running, whether freshly started or recovered. */
+  function beginWatching() {
     setState('warn', 'acquiring');
     setButtons(true);
     render();
@@ -176,9 +308,14 @@ var Tracker = (function () {
     });
 
     tickId = setInterval(render, UI_TICK_MS);
+    checkpointId = setInterval(checkpoint, CHECKPOINT_MS);
+    checkpoint();               // one immediately, so even an instant kill leaves a trace
 
     WakeLock.acquire('tracker').then(function (s) {
       if (!session) return;      // already stopped: don't overwrite the closing message
+      // This is a soft warning and it resolves late, so it must not talk over
+      // something more important that is already on screen — the recovery notice.
+      if (dom.msg.textContent && dom.msg.textContent !== ACQUIRING) return;
       if (!s && WakeLock.supported()) {
         UI.message(dom.msg, 'Screen wake lock refused — the screen may sleep during the run.', '');
       }
@@ -188,12 +325,13 @@ var Tracker = (function () {
   function teardown() {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     if (tickId) { clearInterval(tickId); tickId = null; }
+    if (checkpointId) { clearInterval(checkpointId); checkpointId = null; }
     WakeLock.release('tracker');
   }
 
   /** Build the persisted record from the in-memory session. */
   function finalize(s) {
-    var durationSec = Math.round((Date.now() - s.startTs) / 1000);
+    var durationSec = Math.round(s.elapsedBase + (Date.now() - s.segmentStartTs) / 1000);
     var decimateSec = parseInt(Settings.get('decimateSec'), 10) || 4;
     var elev = Utils.computeElevation(s.points);
     return {
@@ -225,12 +363,14 @@ var Tracker = (function () {
     // A stray Start→Stop that never got a fix is not a run. Saving it would leave a
     // 0 km entry dragging the averages down and a blank day marker on the calendar.
     if (!run.points.length && run.durationSec < 15) {
+      DB.clearLive();
       UI.message(dom.msg, 'Nothing to save — no GPS fix in ' + run.durationSec + ' s.', '', 8000);
       dom.btnNew.disabled = true;
       return Promise.resolve(null);
     }
 
     return DB.put(run).then(function () {
+      DB.clearLive();            // it is a finished run now, not a recoverable one
       lastSaved = run;
       dom.btnNew.disabled = false;
       showSummary(run, s);
@@ -303,6 +443,7 @@ var Tracker = (function () {
     var doReset = function () {
       teardown();
       session = null;
+      DB.clearLive();
       lastSaved = null;
       setState('idle', 'idle');
       setButtons(false);
@@ -333,11 +474,28 @@ var Tracker = (function () {
     dom.btnStop.addEventListener('click', function () { stop(false); });
     dom.btnNew.addEventListener('click', fresh);
 
-    // A page unload mid-session would silently lose the run.
+    // The moments a run gets lost: switching away (the mistouch case), the tab being
+    // frozen or discarded, or the page going away. Checkpoint at every one of them —
+    // `visibilitychange` is the important one, since it still has time to finish the
+    // write, whereas a tab being killed outright does not.
+    document.addEventListener('visibilitychange', function () {
+      if (session && document.visibilityState === 'hidden') checkpoint();
+    });
+    window.addEventListener('pagehide', function () { if (session) checkpoint(); });
+    if ('onfreeze' in document) {
+      document.addEventListener('freeze', function () { if (session) checkpoint(); });
+    }
+
+    // Belt and braces: the checkpoint means a reload no longer loses the run, but a
+    // deliberate warning still beats an accidental navigation.
     window.addEventListener('beforeunload', function (ev) {
       if (session) { ev.preventDefault(); ev.returnValue = ''; }
     });
   }
 
-  return { init: init, start: start, stop: stop, fresh: fresh, isActive: isActive };
+  return {
+    init: init, start: start, stop: stop, fresh: fresh, isActive: isActive,
+    checkpoint: checkpoint, pendingRecovery: pendingRecovery, isRecoverable: isRecoverable,
+    resume: resume, finishRecovered: finishRecovered, discardRecovery: discardRecovery
+  };
 })();
