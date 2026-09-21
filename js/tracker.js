@@ -19,13 +19,45 @@ var Tracker = (function () {
 
   var dom = {};
 
+  /* Every readout the Tracker can show, in canonical order. Settings picks which of
+     them appear; the order is fixed so the layout does not shuffle under you. */
+  var TILES = [
+    { key: 'elapsed',  label: 'Elapsed',       big: true, idle: '0:00' },
+    { key: 'distance', label: 'Distance',      big: true, idle: '0.00', unit: 'km' },
+    { key: 'avgPace',  label: 'Avg pace',      idle: '--:--', unit: '/km' },
+    { key: 'lastPace', label: 'Last min pace', idle: '--:--', unit: '/km' },
+    { key: 'speed',    label: 'Speed',         idle: '0.0',   unit: 'km/h' },
+    { key: 'cadence',  label: 'Cadence',       idle: '--',    unit: 'spm' },
+    { key: 'ascent',   label: 'Ascent',        idle: '--',    unit: 'm' }
+  ];
+
+  function tileDefs() { return TILES.slice(); }
+
+  function selectedTiles() {
+    var want = Settings.tileList();
+    var picked = TILES.filter(function (t) { return want.indexOf(t.key) > -1; });
+    return picked.length ? picked : TILES.slice(0, 2);   // never render an empty grid
+  }
+
+  /** Build the grid from the chosen readouts. Cheap, so it can simply be rebuilt. */
+  function renderTiles() {
+    var host = UI.$('#sessionTiles');
+    if (!host) return;
+    UI.clear(host);
+    dom.tile = {};
+    selectedTiles().forEach(function (t) {
+      var value = UI.el('span', { class: 'stat-value' });
+      UI.setStat(value, t.idle, t.unit);
+      host.appendChild(UI.el('div', { class: 'stat' + (t.big ? ' stat-lg' : '') }, [
+        UI.el('span', { class: 'stat-label', text: t.label }),
+        value
+      ]));
+      dom.tile[t.key] = value;
+    });
+    if (session) render();
+  }
+
   function cacheDom() {
-    dom.elapsed = UI.$('#statElapsed');
-    dom.distance = UI.$('#statDistance');
-    dom.avgPace = UI.$('#statAvgPace');
-    dom.lastPace = UI.$('#statLastPace');
-    dom.speed = UI.$('#statSpeed');
-    dom.ascent = UI.$('#statAscent');
     dom.state = UI.$('#gpsState');
     dom.msg = UI.$('#trackerMsg');
     dom.btnStart = UI.$('#btnStart');
@@ -43,6 +75,7 @@ var Tracker = (function () {
       elapsedBase: 0,           // active seconds banked by earlier segments
       segmentStartTs: Date.now(),
       points: [],               // {lat,lng,alt,t,acc,cum}, t = active seconds
+      cadenceSamples: [],       // {t, spm}
       distance: 0,
       lastFix: null,
       instantSpeed: 0,
@@ -140,19 +173,39 @@ var Tracker = (function () {
   }
 
   function render() {
-    if (!session) return;
+    if (!session || !dom.tile) return;
     var el = elapsedSec();
-    UI.setText(dom.elapsed, Utils.formatDuration(el));
-    UI.setStat(dom.distance, Utils.formatKm(session.distance), 'km');
-    UI.setStat(dom.avgPace, Utils.formatPace(Utils.paceFrom(session.distance, el)), '/km');
-    UI.setStat(dom.lastPace, Utils.formatPace(lastMinutePace()), '/km');
-
     // Speed decays to 0 if no fix has landed for a while.
     var stale = session.lastFix && (Date.now() - session.lastFix) > 10000;
-    UI.setStat(dom.speed, Utils.formatSpeed(stale ? 0 : session.instantSpeed), 'km/h');
+    var cad = Cadence.current();
 
-    var elev = Utils.computeElevation(session.points);
-    UI.setStat(dom.ascent, elev.samples ? '+' + elev.gainM : '--', 'm');
+    var values = {
+      elapsed: [Utils.formatDuration(el), ''],
+      distance: [Utils.formatKm(session.distance), 'km'],
+      avgPace: [Utils.formatPace(Utils.paceFrom(session.distance, el)), '/km'],
+      lastPace: [Utils.formatPace(lastMinutePace()), '/km'],
+      speed: [Utils.formatSpeed(stale ? 0 : session.instantSpeed), 'km/h'],
+      cadence: [cad.spm ? String(Math.round(cad.spm)) : '--', 'spm']
+    };
+    if (dom.tile.ascent) {
+      var elev = Utils.computeElevation(session.points);
+      values.ascent = [elev.samples ? '+' + elev.gainM : '--', 'm'];
+    }
+
+    for (var key in values) {
+      if (dom.tile[key]) UI.setStat(dom.tile[key], values[key][0], values[key][1]);
+    }
+    recordCadence(el, cad);
+  }
+
+  /* One cadence reading every few seconds is plenty for the chart, and keeps the
+     stored series comparable in size to the decimated GPS trace. */
+  var CADENCE_SAMPLE_SEC = 5;
+  function recordCadence(elapsed, reading) {
+    if (!session || !reading.spm) return;
+    var series = session.cadenceSamples;
+    if (series.length && elapsed - series[series.length - 1].t < CADENCE_SAMPLE_SEC) return;
+    series.push({ t: Math.round(elapsed), spm: Math.round(reading.spm) });
   }
 
   function setState(kind, label) {
@@ -195,6 +248,7 @@ var Tracker = (function () {
       elapsedSec: elapsedSec(),
       distance: session.distance,
       points: session.points.slice(),
+      cadenceSamples: session.cadenceSamples.slice(),
       fixes: session.fixes,
       rejected: session.rejected,
       savedAt: Date.now()
@@ -238,6 +292,7 @@ var Tracker = (function () {
       elapsedBase: record.elapsedSec || 0,   // the dead stretch counts as a pause
       segmentStartTs: Date.now(),
       points: (record.points || []).slice(),
+      cadenceSamples: (record.cadenceSamples || []).slice(),
       distance: record.distance || 0,
       lastFix: null,
       instantSpeed: 0,
@@ -259,6 +314,7 @@ var Tracker = (function () {
       elapsedBase: record.elapsedSec || 0,
       segmentStartTs: Date.now(),            // banks zero extra time
       points: (record.points || []).slice(),
+      cadenceSamples: (record.cadenceSamples || []).slice(),
       distance: record.distance || 0,
       fixes: record.fixes || 0,
       rejected: record.rejected || 0
@@ -309,6 +365,10 @@ var Tracker = (function () {
 
     tickId = setInterval(render, UI_TICK_MS);
     checkpointId = setInterval(checkpoint, CHECKPOINT_MS);
+
+    // Started from the Start/Resume tap, which is the user gesture iOS demands
+    // before it will hand over motion data at all.
+    if (Settings.get('cadence')) Cadence.start();
     checkpoint();               // one immediately, so even an instant kill leaves a trace
 
     WakeLock.acquire('tracker').then(function (s) {
@@ -326,7 +386,15 @@ var Tracker = (function () {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     if (tickId) { clearInterval(tickId); tickId = null; }
     if (checkpointId) { clearInterval(checkpointId); checkpointId = null; }
+    Cadence.stop();
     WakeLock.release('tracker');
+  }
+
+  function averageCadence(samples) {
+    if (!samples || !samples.length) return 0;
+    var sum = 0;
+    for (var i = 0; i < samples.length; i++) sum += samples[i].spm;
+    return Math.round(sum / samples.length);
   }
 
   /** Build the persisted record from the in-memory session. */
@@ -344,6 +412,8 @@ var Tracker = (function () {
       // stored has too few samples to smooth honestly.
       elevationGainM: elev.gainM,
       elevationLossM: elev.lossM,
+      cadenceAvgSpm: averageCadence(s.cadenceSamples),
+      cadenceSamples: (s.cadenceSamples || []).slice(),
       place: null,
       points: Utils.decimate(s.points, decimateSec),
       splits: Utils.computeSplits(s.points)
@@ -418,13 +488,14 @@ var Tracker = (function () {
       ['Duration', Utils.formatDuration(run.durationSec)],
       ['Avg pace', Utils.formatPace(run.avgPaceSecPerKm) + ' /km'],
       ['Ascent / descent', '+' + (run.elevationGainM || 0) + ' / -' + (run.elevationLossM || 0) + ' m'],
+      run.cadenceAvgSpm ? ['Avg cadence', run.cadenceAvgSpm + ' spm'] : null,
       ['Stored points', String(run.points.length) + (rawSession ? ' of ' + rawSession.points.length : '')]
     ];
     if (run.place && run.place.commune) rows.splice(3, 0, ['Commune', Geocode.label(run.place)]);
     if (rawSession && rawSession.rejected) {
       rows.push(['Fixes ignored', rawSession.rejected + ' (low accuracy)']);
     }
-    rows.forEach(function (r) {
+    rows.filter(Boolean).forEach(function (r) {
       dom.summaryGrid.appendChild(UI.el('div', {}, [
         UI.el('span', { text: r[0] }),
         UI.el('span', { text: r[1] })
@@ -449,12 +520,7 @@ var Tracker = (function () {
       setButtons(false);
       dom.summary.hidden = true;
       UI.message(dom.msg, '');
-      UI.setText(dom.elapsed, '0:00');
-      UI.setStat(dom.distance, '0.00', 'km');
-      UI.setStat(dom.avgPace, '--:--', '/km');
-      UI.setStat(dom.lastPace, '--:--', '/km');
-      UI.setStat(dom.speed, '0.0', 'km/h');
-      UI.setStat(dom.ascent, '--', 'm');
+      renderTiles();          // rebuilds every chosen tile at its idle value
     };
 
     if (session) {
@@ -469,6 +535,8 @@ var Tracker = (function () {
 
   function init() {
     cacheDom();
+    renderTiles();
+    document.addEventListener('settings-changed', renderTiles);
     setButtons(false);
     dom.btnStart.addEventListener('click', start);
     dom.btnStop.addEventListener('click', function () { stop(false); });
@@ -496,6 +564,7 @@ var Tracker = (function () {
   return {
     init: init, start: start, stop: stop, fresh: fresh, isActive: isActive,
     checkpoint: checkpoint, pendingRecovery: pendingRecovery, isRecoverable: isRecoverable,
-    resume: resume, finishRecovered: finishRecovered, discardRecovery: discardRecovery
+    resume: resume, finishRecovered: finishRecovered, discardRecovery: discardRecovery,
+    tileDefs: tileDefs, renderTiles: renderTiles
   };
 })();

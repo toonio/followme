@@ -177,6 +177,90 @@
     });
   }
 
+  /** Checkbox per readout; at least one has to stay on or the grid is empty. */
+  function initTilePicker() {
+    var host = UI.$('#tilePicker');
+    if (!host) return;
+
+    function render() {
+      UI.clear(host);
+      var chosen = Settings.tileList();
+      Tracker.tileDefs().forEach(function (tile) {
+        var input = UI.el('input', { type: 'checkbox', id: 'tile-' + tile.key });
+        input.checked = chosen.indexOf(tile.key) > -1;
+        input.addEventListener('change', function () {
+          var next = Tracker.tileDefs()
+            .filter(function (t) {
+              var box = UI.$('#tile-' + t.key);
+              return box && box.checked;
+            })
+            .map(function (t) { return t.key; });
+          if (!next.length) {           // refuse to leave the Tracker with nothing on it
+            input.checked = true;
+            return;
+          }
+          Settings.set({ tiles: next.join(',') });
+        });
+        host.appendChild(UI.el('label', { class: 'tile-option' }, [
+          input, UI.el('span', { text: tile.label })
+        ]));
+      });
+    }
+
+    render();
+  }
+
+  function initCadenceCard() {
+    var box = UI.$('#setCadence');
+    var btn = UI.$('#btnSensorCheck');
+    var msg = UI.$('#cadenceMsg');
+    if (!box || !btn) return;
+
+    if (!Cadence.supported()) {
+      box.disabled = true;
+      btn.disabled = true;
+      UI.message(msg, 'This browser exposes no motion sensor, so cadence is unavailable here.', '');
+    }
+
+    box.addEventListener('change', function () { Settings.set({ cadence: box.checked }); });
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      var was = btn.textContent;
+      btn.textContent = 'Measuring…';
+      UI.message(msg, 'Jog on the spot for a few seconds…');
+      Cadence.diagnose(6).then(function (r) {
+        btn.disabled = false;
+        btn.textContent = was;
+        if (!r.ok) {
+          UI.message(msg, 'No motion data: ' + r.reason + '.', 'err');
+          return;
+        }
+        var name = r.api === 'sensor' ? 'Accelerometer API' : 'devicemotion';
+        if (!r.samples) {
+          // No readings at all is a different problem from a slow sensor, and saying
+          // "too slow" would send you looking in the wrong place.
+          UI.message(msg, 'Sensor: ' + name + ' — but no readings arrived in 6 s. ' +
+            'This device has no usable motion sensor, or the browser is withholding it.', 'err', 20000);
+          return;
+        }
+        var lines = [
+          'Sensor: ' + name,
+          Math.round(r.hz) + ' Hz (' + r.samples + ' samples in 6 s)',
+          r.hz >= 16 ? 'fast enough for cadence' : 'too slow for reliable cadence'
+        ];
+        lines.push(r.spm
+          ? 'reading ' + Math.round(r.spm) + ' spm (confidence ' + r.confidence + ')'
+          : 'no cadence detected — expected unless you were moving');
+        UI.message(msg, lines.join(' · '), r.hz >= 16 ? 'ok' : 'err', 20000);
+      }).catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = was;
+        UI.message(msg, 'Sensor check failed: ' + (err.message || err), 'err');
+      });
+    });
+  }
+
   function initSettingsView() {
     var deezer = UI.$('#setDeezer');
     var rounds = UI.$('#setRounds');
@@ -187,6 +271,7 @@
     var decimate = UI.$('#setDecimate');
     var placeLookup = UI.$('#setPlaceLookup');
     var scale = UI.$('#setScale');
+    var cadenceBox = UI.$('#setCadence');
 
     // A focused number input eats wheel events and silently changes value while the
     // page is scrolled — which then gets persisted on `change`. Drop focus instead.
@@ -205,6 +290,7 @@
       decimate.value = s.decimateSec;
       placeLookup.checked = !!s.placeLookup;
       scale.value = s.sessionScale;
+      cadenceBox.checked = !!s.cadence;
       applySessionScale(s.sessionScale);
     }
 
@@ -391,6 +477,8 @@
     Stats.init();
     Calendar.init();
     initSettingsView();
+    initTilePicker();
+    initCadenceCard();
     initBackup();
     renderDeezer();
 

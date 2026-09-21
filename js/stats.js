@@ -204,6 +204,7 @@ var Stats = (function () {
       var meta = Utils.formatKm(r.distanceMeters) + ' km · ' + Utils.formatDuration(r.durationSec) +
                  ' · ' + Utils.formatPace(r.avgPaceSecPerKm) + ' /km';
       if (r.elevationGainM) meta += ' · +' + r.elevationGainM + ' m';
+      if (r.cadenceAvgSpm) meta += ' · ' + r.cadenceAvgSpm + ' spm';
       var head = Utils.formatDateTime(r.date);
       if (r.place && r.place.commune) head += ' · ' + r.place.commune;
       host.appendChild(UI.el('div', { class: 'run-item' }, [

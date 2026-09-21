@@ -60,6 +60,10 @@ var IO = (function () {
       avgPaceSecPerKm: Math.round(Number(r.avgPaceSecPerKm) || Utils.paceFrom(distance, duration)),
       elevationGainM: Math.round(Number(r.elevationGainM) || 0),
       elevationLossM: Math.round(Number(r.elevationLossM) || 0),
+      cadenceAvgSpm: Math.round(Number(r.cadenceAvgSpm) || 0),
+      cadenceSamples: Array.isArray(r.cadenceSamples) ? r.cadenceSamples.filter(function (c) {
+        return c && isFinite(c.t) && isFinite(c.spm);
+      }) : [],
       place: (r.place && r.place.commune) ? r.place : null,
       points: Array.isArray(r.points) ? r.points.filter(function (p) {
         return p && isFinite(p.lat) && isFinite(p.lng);

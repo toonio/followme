@@ -13,7 +13,11 @@ var Settings = (function () {
     accuracyThresholdM: 20,
     decimateSec: 4,
     placeLookup: true,
-    sessionScale: 115        // percent; see the Session display hint for why not more
+    sessionScale: 115,       // percent; see the Session display hint for why not more
+    // Which readouts the Tracker shows, in canonical order. Stored as a string so a
+    // default array can never be shared by reference between callers.
+    tiles: 'elapsed,distance,avgPace,lastPace,speed,cadence,ascent',
+    cadence: true
   };
 
   var current = load();
@@ -63,8 +67,16 @@ var Settings = (function () {
     return m ? m[1] : '';
   }
 
+  /** The `tiles` setting as a clean list. */
+  function tileList() {
+    return String(get('tiles') || '').split(',')
+      .map(function (t) { return t.trim(); })
+      .filter(Boolean);
+  }
+
   return {
     DEFAULTS: DEFAULTS,
+    tileList: tileList,
     get: get,
     all: all,
     set: set,

@@ -25,32 +25,7 @@
         <span id="gpsState" class="pill pill-idle">idle</span>
       </div>
 
-      <div class="stat-grid">
-        <div class="stat stat-lg">
-          <span class="stat-label">Elapsed</span>
-          <span class="stat-value" id="statElapsed">0:00</span>
-        </div>
-        <div class="stat stat-lg">
-          <span class="stat-label">Distance</span>
-          <span class="stat-value" id="statDistance">0.00 <small>km</small></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Avg pace</span>
-          <span class="stat-value" id="statAvgPace">--:--<small>/km</small></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Last min pace</span>
-          <span class="stat-value" id="statLastPace">--:--<small>/km</small></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Speed</span>
-          <span class="stat-value" id="statSpeed">0.0 <small>km/h</small></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Ascent</span>
-          <span class="stat-value" id="statAscent">-- <small>m</small></span>
-        </div>
-      </div>
+      <div class="stat-grid" id="sessionTiles"></div>
 
       <div class="btn-row">
         <button id="btnStart" class="btn btn-primary">Start</button>
@@ -152,6 +127,10 @@
         <span>Session data size &mdash; <b id="scaleValue">115%</b></span>
         <input type="range" id="setScale" min="100" max="200" step="5" autocomplete="off">
       </label>
+      <fieldset class="tile-picker">
+        <legend>Readouts on the Tracker page</legend>
+        <div id="tilePicker" class="tile-options"></div>
+      </fieldset>
       <p class="hint">How large the live figures on the Tracker page are drawn. The change applies as you drag, so flip to Tracker and check before you head out. Past about 120% on a phone the six tiles stack into one column and the Start/Stop buttons fall below the fold &mdash; readable from further away, but you have to scroll to reach them mid-run.</p>
     </div>
 
@@ -187,6 +166,18 @@
         <button type="button" class="btn-mini" id="btnTestSound">Test</button>
       </div>
       <p class="hint">End of work: 5 quick beeps. End of rest: 3 spaced, higher beeps. The series ends on a rising three-tone. They play on the media volume &mdash; turn it up before heading out, and test with the headphones you will actually wear.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Cadence</h2></div>
+      <div class="sound-row">
+        <label class="check">
+          <input type="checkbox" id="setCadence"> <span>Measure cadence from the accelerometer</span>
+        </label>
+        <button type="button" class="btn-mini" id="btnSensorCheck">Check sensor</button>
+      </div>
+      <p class="hint">Steps per minute, read from the phone's motion sensor while the Tracker is in front. <b>Check sensor</b> measures what your phone actually delivers &mdash; the rate, and a live reading if you jog on the spot for a few seconds. It needs roughly 16&nbsp;Hz to work and phones usually give 50&ndash;60; readings below 130 or above 220&nbsp;spm are reported as nothing rather than guessed at. Samples stop when the app is not in front, so cadence pauses if you switch away.</p>
+      <p id="cadenceMsg" class="msg" hidden></p>
     </div>
 
     <div class="card">
@@ -265,6 +256,7 @@
 <script src="js/utils.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/db.js"></script>
+<script src="js/cadence.js"></script>
 <script src="js/geocode.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/routeview.js"></script>

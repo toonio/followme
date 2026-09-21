@@ -22,7 +22,8 @@ var RouteView = (function () {
      y position already says how fast, so spending the ramp there would re-encode it
      — and under a dark-is-fast ramp the peaks would be the dimmest part of the line.
      The ramp stays where it is the only key to magnitude: the map. */
-  var LINE = '#4cc9a0';      // 7.67:1 on the chart surface
+  var LINE = '#4cc9a0';        // speed, 7.67:1 on the chart surface
+  var CADENCE_LINE = '#c69cf5'; // a second series, kept clear of the blue speed ramp
   var INK = '#e6edf3';
   var INK_DIM = '#8b98a5';
   var GRID = '#2a323d';
@@ -47,32 +48,51 @@ var RouteView = (function () {
   /* ------------------------------ speed chart ---------------------------- */
 
   /**
-   * Speed against elapsed time. Returns the svg with `__select(i)` attached;
+   * A series against elapsed time. Returns the svg with `__select(i)` attached;
    * `__samples` is the series it was built from.
+   *
+   * `opts`: { value(sample) -> number, unit, colour, zeroBased, maxT }
+   * Cadence gets its OWN chart rather than a second axis on the speed one: two
+   * measures at different scales sharing a y-axis is the classic way to make a chart
+   * say whatever you want it to. Stacked charts on a common time axis compare
+   * honestly, and the shared selection ties them together.
    */
-  function speedChart(samples, geom) {
+  function seriesChart(samples, geom, opts) {
     var CHART = geom || WIDE.chart;
+    var o = opts || {};
+    var valueOf = o.value || function (s) { return s.mps * 3.6; };
+    var unit = o.unit || 'km/h';
+    var colour = o.colour || LINE;
     var w = CHART.width, h = CHART.height;
     var plotW = w - CHART.padL - CHART.padR;
     var plotH = h - CHART.padT - CHART.padB;
 
-    var maxT = samples[samples.length - 1].t || 1;
-    var maxV = 0;
-    samples.forEach(function (s) { if (s.mps > maxV) maxV = s.mps; });
-    var yMax = (maxV * 3.6) * 1.15 || 1;        // km/h, zero-based: speed has a real zero
+    var maxT = o.maxT || samples[samples.length - 1].t || 1;
+    var maxV = 0, minV = Infinity;
+    samples.forEach(function (sm) {
+      var v = valueOf(sm);
+      if (v > maxV) maxV = v;
+      if (v < minV) minV = v;
+    });
+    // Speed is zero-based: standing still is a real, meaningful zero. Cadence is not
+    // — every running cadence sits in a narrow band, and anchoring it at zero would
+    // squash the whole run into a flat line near the top of the plot.
+    var yMin = o.zeroBased === false ? Math.max(0, minV - (maxV - minV) * 0.35 - 2) : 0;
+    var yMax = maxV + (maxV - yMin) * 0.15 || 1;
+    var span = (yMax - yMin) || 1;
 
     function x(t) { return CHART.padL + plotW * (t / maxT); }
-    function y(kmh) { return CHART.padT + plotH * (1 - kmh / yMax); }
+    function y(v) { return CHART.padT + plotH * (1 - (v - yMin) / span); }
 
     var root = UI.svg('svg', {
       viewBox: '0 0 ' + w + ' ' + h,
       role: 'img',
-      'aria-label': 'Speed over time. Select a point to mark it on the map.'
+      'aria-label': (o.label || 'Speed') + ' over time. Select a point to mark it on the map.'
     });
 
-    // Recessive grid, labelled in km/h.
+    // Recessive grid, labelled in the series' own unit.
     [0, 0.5, 1].forEach(function (frac) {
-      var v = yMax * frac, yy = y(v);
+      var v = yMin + span * frac, yy = y(v);
       root.appendChild(UI.svg('line', {
         x1: CHART.padL - 4, x2: w - CHART.padR, y1: yy.toFixed(1), y2: yy.toFixed(1),
         stroke: GRID, 'stroke-width': 1
@@ -82,7 +102,7 @@ var RouteView = (function () {
         fill: INK_DIM, 'font-size': 10
       });
       // The unit rides on the top label — a separate caption collided with it.
-      lab.textContent = v.toFixed(v >= 10 ? 0 : 1) + (frac === 1 ? ' km/h' : '');
+      lab.textContent = v.toFixed(v >= 10 ? 0 : 1) + (frac === 1 ? ' ' + unit : '');
       root.appendChild(lab);
     });
 
@@ -97,11 +117,11 @@ var RouteView = (function () {
       root.appendChild(lab);
     });
 
-    var d = samples.map(function (s, i) {
-      return (i === 0 ? 'M' : 'L') + x(s.t).toFixed(1) + ' ' + y(s.mps * 3.6).toFixed(1);
+    var d = samples.map(function (sm, i) {
+      return (i === 0 ? 'M' : 'L') + x(sm.t).toFixed(1) + ' ' + y(valueOf(sm)).toFixed(1);
     }).join(' ');
     root.appendChild(UI.svg('path', {
-      d: d, fill: 'none', stroke: LINE, 'stroke-width': 2,
+      d: d, fill: 'none', stroke: colour, 'stroke-width': 2,
       'stroke-linecap': 'round', 'stroke-linejoin': 'round'
     }));
 
@@ -118,9 +138,9 @@ var RouteView = (function () {
 
     root.__samples = samples;
     root.__select = function (i) {
-      var s = samples[i];
-      if (!s) return;
-      var sx = x(s.t), sy = y(s.mps * 3.6);
+      var sm = samples[i];
+      if (!sm) return;
+      var sx = x(sm.t), sy = y(valueOf(sm));
       rule.setAttribute('x1', sx.toFixed(1));
       rule.setAttribute('x2', sx.toFixed(1));
       rule.setAttribute('opacity', 1);
@@ -130,17 +150,30 @@ var RouteView = (function () {
         c.setAttribute('opacity', 1);
       });
     };
-    /** Nearest sample to a viewBox x — clicking anywhere in the plot is enough. */
-    root.__nearest = function (vbX) {
-      var t = Utils.clamp((vbX - CHART.padL) / plotW, 0, 1) * maxT;
-      var best = 0, bestD = Infinity;
+    /** Hide the selection marks — used when a chart has no sample at that moment. */
+    root.__clear = function () {
+      rule.setAttribute('opacity', 0);
+      dot.setAttribute('opacity', 0);
+      dotHalo.setAttribute('opacity', 0);
+    };
+    /** Index of the sample nearest a given elapsed time. */
+    root.__nearestTime = function (t) {
+      var best = -1, bestD = Infinity;
       for (var i = 0; i < samples.length; i++) {
         var gap = Math.abs(samples[i].t - t);
         if (gap < bestD) { bestD = gap; best = i; }
       }
-      return best;
+      return { index: best, gap: bestD };
+    };
+    /** Elapsed time under a viewBox x — clicking anywhere in the plot is enough. */
+    root.__timeAt = function (vbX) {
+      return Utils.clamp((vbX - CHART.padL) / plotW, 0, 1) * maxT;
     };
     return root;
+  }
+
+  function speedChart(samples, geom, opts) {
+    return seriesChart(samples, geom, opts);
   }
 
   /* -------------------------------- figures ------------------------------ */
@@ -203,47 +236,109 @@ var RouteView = (function () {
     ];
     if (run.elevationGainM) facts.push('+' + run.elevationGainM + ' m');
 
-    if (samples.length >= 2) {
-      var chart = speedChart(samples, geom.chart);
-      var holder = UI.el('div', {
-        class: 'speed-chart',
-        tabindex: '0',
-        role: 'group',
-        'aria-label': 'Speed chart. Click a point, or use the arrow keys, to mark it on the map.'
-      }, [chart]);
+    var cadenceSeries = (run.cadenceSamples || []).filter(function (c) {
+      return c && isFinite(c.t) && isFinite(c.spm) && c.spm > 0;
+    });
 
-      var selected = -1;
-      function select(i) {
-        i = Utils.clamp(i, 0, samples.length - 1);
-        selected = i;
-        var s = samples[i];
-        chart.__select(i);
-        var xy = map.__project(s.point);
-        [mark, markHalo].forEach(function (c) {
-          c.setAttribute('cx', xy.x.toFixed(1));
-          c.setAttribute('cy', xy.y.toFixed(1));
-          c.setAttribute('opacity', 1);
+    if (samples.length >= 2) {
+      // One time axis shared by every chart, so the stacked plots line up and a
+      // selection in one lands at the same moment in the others.
+      var maxT = Math.max(
+        samples[samples.length - 1].t,
+        cadenceSeries.length ? cadenceSeries[cadenceSeries.length - 1].t : 0
+      );
+
+      /* How far from a sample a click may land and still count as "that moment".
+         Fixed seconds will not do: the GPS trace is decimated, so on a straight road
+         its samples can sit half a minute apart while cadence lands every five. Each
+         series gets a tolerance from its own spacing. */
+      function tolerance(series) {
+        if (series.length < 2) return 30;
+        var gaps = [];
+        for (var i = 1; i < series.length; i++) gaps.push(series[i].t - series[i - 1].t);
+        gaps.sort(function (a, b) { return a - b; });
+        return Math.max(10, gaps[Math.floor(gaps.length / 2)] * 2);
+      }
+
+      var charts = [];
+      var speed = seriesChart(samples, geom.chart, { maxT: maxT, label: 'Speed' });
+      charts.push({ svg: speed, series: samples, tol: tolerance(samples), hit: -1 });
+      body.appendChild(chartHolder(speed, 'Speed chart'));
+
+      if (cadenceSeries.length >= 2) {
+        var cad = seriesChart(cadenceSeries, geom.chart, {
+          value: function (c) { return c.spm; },
+          unit: 'spm',
+          colour: CADENCE_LINE,
+          zeroBased: false,
+          maxT: maxT,
+          label: 'Cadence'
         });
-        readout.textContent = Utils.formatDuration(s.t) + ' · ' + Utils.formatKm(s.cum) + ' km · ' +
-          Utils.formatSpeed(s.mps) + ' km/h · ' + UI.paceLabel(s.mps) + ' /km';
+        charts.push({ svg: cad, series: cadenceSeries, tol: tolerance(cadenceSeries), hit: -1 });
+        body.appendChild(chartHolder(cad, 'Cadence chart'));
+      }
+
+      var selectedT = -1;
+      function selectAt(t) {
+        selectedT = t;
+        var parts = [Utils.formatDuration(t)];
+
+        // One hit decision per chart, used for both the marker and the readout, so
+        // the two can never disagree about whether there is a reading there.
+        charts.forEach(function (c) {
+          var hit = c.svg.__nearestTime(t);
+          c.hit = (hit.index >= 0 && hit.gap <= c.tol) ? hit.index : -1;
+          if (c.hit < 0) c.svg.__clear(); else c.svg.__select(c.hit);
+        });
+
+        var s = charts[0].hit >= 0 ? samples[charts[0].hit] : null;
+        if (s) {
+          parts.push(Utils.formatKm(s.cum) + ' km');
+          parts.push(Utils.formatSpeed(s.mps) + ' km/h');
+          parts.push(UI.paceLabel(s.mps) + ' /km');
+          var xy = map.__project(s.point);
+          [mark, markHalo].forEach(function (c) {
+            c.setAttribute('cx', xy.x.toFixed(1));
+            c.setAttribute('cy', xy.y.toFixed(1));
+            c.setAttribute('opacity', 1);
+          });
+        } else {
+          mark.setAttribute('opacity', 0);
+          markHalo.setAttribute('opacity', 0);
+        }
+
+        if (charts.length > 1) {
+          parts.push(charts[1].hit >= 0 ? cadenceSeries[charts[1].hit].spm + ' spm' : '-- spm');
+        }
+        readout.textContent = parts.join(' · ');
         readout.classList.add('is-selected');
       }
 
-      function pick(clientX) {
-        var box = chart.getBoundingClientRect();
-        if (!box.width) return;
-        select(chart.__nearest((clientX - box.left) / box.width * geom.chart.width));
+      function chartHolder(svg, label) {
+        var holder = UI.el('div', {
+          class: 'speed-chart',
+          tabindex: '0',
+          role: 'group',
+          'aria-label': label + '. Click a point, or use the arrow keys, to mark it on the map.'
+        }, [svg]);
+        holder.addEventListener('click', function (ev) {
+          var box = svg.getBoundingClientRect();
+          if (!box.width) return;
+          selectAt(svg.__timeAt((ev.clientX - box.left) / box.width * geom.chart.width));
+        });
+        holder.addEventListener('keydown', function (ev) {
+          if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+          ev.preventDefault();
+          var step = maxT / 60;
+          var base = selectedT < 0 ? 0 : selectedT;
+          selectAt(Utils.clamp(base + (ev.key === 'ArrowRight' ? step : -step), 0, maxT));
+        });
+        return holder;
       }
 
-      holder.addEventListener('click', function (ev) { pick(ev.clientX); });
-      holder.addEventListener('keydown', function (ev) {
-        if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
-        ev.preventDefault();
-        select(selected < 0 ? 0 : selected + (ev.key === 'ArrowRight' ? 1 : -1));
-      });
-
-      body.appendChild(holder);
-      readout.textContent = 'Tap the chart to mark a point on the map';
+      readout.textContent = cadenceSeries.length >= 2
+        ? 'Tap either chart to mark that moment on the map'
+        : 'Tap the chart to mark a point on the map';
       body.appendChild(readout);
     }
 

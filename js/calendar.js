@@ -110,6 +110,7 @@ var Calendar = (function () {
         ['Avg pace', Utils.formatPace(r.avgPaceSecPerKm) + ' /km'],
         ['Ascent / descent', '+' + (r.elevationGainM || 0) + ' / -' + (r.elevationLossM || 0) + ' m']
       ];
+      if (r.cadenceAvgSpm) rows.push(['Avg cadence', r.cadenceAvgSpm + ' spm']);
       if (r.place && r.place.commune) rows.push(['Commune', Geocode.label(r.place)]);
       rows.forEach(function (row) {
         grid.appendChild(UI.el('div', {}, [

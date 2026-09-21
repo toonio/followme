@@ -33,6 +33,7 @@ count as secure for local testing).
 | `js/settings.js` | Config in `localStorage` |
 | `js/db.js` | IndexedDB run store + live-session checkpoints (falls back to `localStorage`) |
 | `js/geocode.js` | Reverse geocoding: coordinate to commune name |
+| `js/cadence.js` | Steps per minute from the accelerometer |
 | `js/ui.js` | DOM helpers, modal, route SVG and the speed ramp |
 | `js/routeview.js` | Route thumbnail and the linked map + speed chart |
 | `js/wakelock.js` | Reference-counted Screen Wake Lock |
@@ -57,8 +58,14 @@ elapsed, distance, global average pace, trailing-60-second pace, instantaneous s
 and ascent. The accuracy figure is not shown — it is not actionable mid-run; the saved
 run reports how many fixes were discarded instead.
 
-Their size is set in **Settings → Session display** (`--session-scale`, 100–200%,
-default 115%), scoped to the tracker so the Stats page keeps its base sizes.
+**Which readouts appear is yours to choose** — Settings → Session display lists all
+seven (elapsed, distance, average pace, last-minute pace, speed, cadence, ascent) and the
+grid is built from whatever is ticked. The order is fixed so the layout never shuffles
+under you mid-run, and the last box cannot be unticked: a Tracker page with nothing on it
+is not a state worth supporting.
+
+Their size is set in the same place (`--session-scale`, 100–200%, default 115%), scoped
+to the tracker so the Stats page keeps its base sizes.
 
 The grid reflows with the type rather than clipping it. The column minimum is derived
 from the widest value the tracker can show — elapsed past an hour, `1:07:32`, which
@@ -118,6 +125,36 @@ without looking at the phone. **Test** in Settings plays both transition signatu
 to back. Beeps use the media volume, and the audio context is unlocked by the tap on
 Start, so mobile autoplay policies do not silence them.
 
+**Cadence** — steps per minute from the accelerometer, live on the Tracker, averaged
+onto the saved run, and charted in the enlarged route view.
+
+The sample rate was never the constraint: a running cadence is 2.2–3.4 Hz and browsers
+deliver 50–60 Hz, so there is an order of magnitude spare. Measured against synthetic
+running signals, the detector lands within ~1 spm at 25 Hz and above, and within 1.3 spm
+even at 16 Hz.
+
+The constraint is the **octave**. Arm swing happens once per *stride* — half the cadence
+— and with the phone in a hand it is the strongest thing in the signal. Correlating the
+raw stream locks onto it and reports half the true cadence with total confidence, and it
+cannot be rescued afterwards by checking the half-lag, because at that lag the arm swing
+is in antiphase and actively cancels the step. So the stride is filtered out *before*
+correlating: a band-pass confined to the running band, built from **three** stacked
+moving-average high-pass stages. One stage is not enough — measured, it keeps 0.86 of a
+1.43 Hz stride against 1.12 of a 2.87 Hz step, a ratio of 1.3 that a hand-swung phone
+beats easily; three stages take that ratio to 2.44, which is what makes the hand-held
+case work at all.
+
+What it will not do is guess. The window is 8 s (4 s minimum), the search runs wider than
+the reported 130–220 spm band so an out-of-band peak is *seen* and rejected rather than
+clamped onto the edge, and a correlation peak below 0.35 reports nothing. Standing still,
+a jostled phone, road vibration in a car and walking at 110 spm are all correctly silent.
+
+Two practical limits. Motion events stop when the page is not in front, so cadence pauses
+if you switch away — distance keeps accruing, cadence does not. And iOS gates motion
+behind a permission prompt that needs a user tap, which the Start button provides.
+**Settings → Cadence → Check sensor** measures what your phone actually delivers: which
+API, the real sample rate, and a live reading if you jog on the spot.
+
 **Elevation** — cumulative ascent and descent, from the altitudes the GPS already
 reports. Raw altitude is far noisier than position, so summing every delta would invent
 hundreds of metres on flat ground; instead the series is smoothed over a 15-sample
@@ -156,11 +193,21 @@ here: points sit a few seconds apart, which is a longer baseline than a single f
 therefore a *steadier* speed estimate than raw fixes would give.
 
 Tap the trace (or focus it and press Enter) to open the enlarged view: the map with
-`Start`/`Finish` labelled, and a **speed chart** underneath. The two are projections of
-the same samples — click anywhere on the chart (or use ← →) and the picked sample gets a
-rule and a dot on the chart, a ring on the map, and a readout of its time, distance,
-speed and pace. The chart is a plain line in the app's accent, not the ramp: the y
-position already says how fast, so colouring it too would re-encode what the shape shows.
+`Start`/`Finish` labelled, then a **speed chart**, then a **cadence chart** when the run
+has cadence. Cadence gets its own plot rather than a second y-axis on the speed one —
+two measures at different scales sharing an axis is the classic way to make a chart say
+whatever you like; stacked plots on a common time axis compare honestly. Speed is
+zero-based because standing still is a real zero; cadence is not, because every running
+cadence sits in a narrow band and a zero baseline would flatten the whole run into a line.
+
+All of it is one selection: click either chart (or use ← →) and the picked moment gets a
+rule and dot on both charts, a ring on the map, and a readout of time, distance, speed,
+pace and cadence. How close a click must land to count as "that moment" comes from each
+series' own spacing rather than a fixed number of seconds — the decimated GPS trace can
+have samples half a minute apart on a straight road while cadence lands every five — and
+the same decision drives both the marker and the readout, so the two can never disagree.
+The chart lines are plain, not the map's ramp: the y position already says how fast, so
+colouring them too would re-encode what the shape shows.
 Both viewBoxes shrink on narrow screens, otherwise a 640-wide viewBox squeezed into a
 300px phone renders 10px type at under 5px.
 
