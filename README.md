@@ -244,6 +244,15 @@ full-screen dialogs — clipped by the same chrome — inset by it. A keyboard-s
 (over 180 px) is deliberately ignored: correcting for it would fling the tab bar up onto
 the keyboard, over the field being typed into.
 
+## Planned
+
+**Heart rate** from a Bluetooth chest strap, over Web Bluetooth and the standard BLE
+Heart Rate Service. Not built — no strap owned yet. The groundwork is done and written
+up in [`docs/heart-rate-plan.md`](docs/heart-rate-plan.md): what was verified about the
+browser's Bluetooth support, the characteristic layout, a parser tested against 14 cases
+including malformed packets, the connection sketch, and the constraints (absent from
+every iOS browser, foreground only, one connection at a time).
+
 ## Known limitations
 
 - Wake lock is reliable on Chrome/Chromium for Android; iOS Safari support is
