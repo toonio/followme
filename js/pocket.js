@@ -23,6 +23,7 @@ var Pocket = (function () {
   var peekTimer = null;
   var tickTimer = null;
   var dom = {};
+  var cells = {};
   var drag = null;
 
   /* -------------------------------- state ------------------------------- */
@@ -60,8 +61,7 @@ var Pocket = (function () {
     setHandle(0);
     dom.root.hidden = false;
     document.body.classList.add('is-pocketed');
-    UI.setText(dom.elapsed, Tracker.isActive() ? Tracker.liveFigures().elapsed : '0:00');
-    UI.setText(dom.distance, Tracker.isActive() ? Tracker.liveFigures().distance : '0.00 km');
+    buildFace();
     applyDim(dimOpacity());
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(renderFace, 1000);
@@ -77,11 +77,37 @@ var Pocket = (function () {
     }, PEEK_MS);
   }
 
+  /**
+   * Build a cell per selected readout. Done at lock time rather than per tick: the
+   * selection cannot change while the sheet is up, so only the values need updating
+   * afterwards.
+   */
+  function buildFace() {
+    var list = Tracker.readouts();
+    UI.clear(dom.face);
+    cells = {};
+
+    // Fewer readouts, bigger type — the whole point is reading it at a glance while
+    // moving, so a single chosen figure should fill the screen.
+    dom.face.className = 'pocket-face ' +
+      (list.length <= 2 ? 'size-xl' : list.length <= 4 ? 'size-lg' : 'size-md');
+
+    list.forEach(function (r) {
+      var value = UI.el('span', { class: 'pocket-value' });
+      UI.setStat(value, r.value, r.unit);
+      dom.face.appendChild(UI.el('div', { class: 'pocket-stat' }, [
+        value,
+        UI.el('span', { class: 'pocket-label', text: r.label })
+      ]));
+      cells[r.key] = value;
+    });
+  }
+
   function renderFace() {
     if (!locked || (previewing && !Tracker.isActive())) return;
-    var live = Tracker.liveFigures();
-    UI.setText(dom.elapsed, live.elapsed);
-    UI.setText(dom.distance, live.distance);
+    Tracker.readouts().forEach(function (r) {
+      if (cells[r.key]) UI.setStat(cells[r.key], r.value, r.unit);
+    });
   }
 
   /* ------------------------------ unlocking ----------------------------- */
@@ -141,7 +167,7 @@ var Pocket = (function () {
     setHandle(0);
     dom.root.hidden = false;
     document.body.classList.add('is-pocketed');
-    renderFace();
+    buildFace();
     peek();                                    // show what it is before it goes dark
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(renderFace, 1000);  // a readout, not an animation
@@ -181,8 +207,7 @@ var Pocket = (function () {
   function init() {
     dom.root = UI.$('#pocket');
     dom.dim = UI.$('#pocketDim');
-    dom.elapsed = UI.$('#pocketElapsed');
-    dom.distance = UI.$('#pocketDistance');
+    dom.face = UI.$('#pocketFace');
     dom.track = UI.$('#pocketTrack');
     dom.handle = UI.$('#pocketHandle');
     if (!dom.root) return;

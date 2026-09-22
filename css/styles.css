@@ -476,7 +476,7 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: 12vh 20px calc(6vh + env(safe-area-inset-bottom));
+  padding: 5vh 20px calc(5vh + env(safe-area-inset-bottom));
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
@@ -493,23 +493,57 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   opacity: .2;
   transition: opacity .35s ease;
 }
-.pocket-face { text-align: center; }
-.pocket-elapsed {
-  font-size: clamp(56px, 18vw, 96px);
+/* The dim layer centres its children, which makes them shrink-wrap — so the readout
+   block has to claim the width explicitly or the grid only ever finds room for one
+   column. */
+/* Centre the readouts in whatever room is left above the slider, so a short list does
+   not float at the top of a black screen and a long one still clears the handle. */
+.pocket-body {
+  width: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* Every readout the user picked for the Tracker, on black. Two columns as soon as
+   there is more than one, so a long list stays readable without scrolling — and the
+   sheet must never scroll, since scrolling is a touch it is supposed to swallow. */
+.pocket-face {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 3.2vh 6vw;
+  width: 100%;
+  text-align: center;
+}
+.pocket-stat { min-width: 0; }
+.pocket-value {
+  display: block;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.05;
   color: #fff;
+  white-space: nowrap;
 }
-.pocket-distance {
-  margin-top: 10px;
-  font-size: clamp(24px, 8vw, 40px);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.pocket-value small { font-size: .42em; font-weight: 500; margin-left: .15em; }
+.pocket-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
   color: #fff;
+  opacity: .65;
 }
+/* Fewer chosen readouts, bigger type. */
+.pocket-face.size-xl .pocket-value { font-size: clamp(48px, 17vw, 92px); }
+.pocket-face.size-lg .pocket-value { font-size: clamp(34px, 11vw, 60px); }
+.pocket-face.size-md .pocket-value { font-size: clamp(30px, 10vw, 52px); }
+.pocket-face.size-xl { grid-template-columns: 1fr; }
 .pocket-note {
-  margin: 18px 0 0;
+  margin: 3.4vh 0 0;
+  text-align: center;
   font-size: 12px;
   letter-spacing: .6px;
   text-transform: uppercase;

@@ -111,6 +111,13 @@ with an opaque black sheet that swallows every touch, so the phone can go in a p
 without setting off Stop. Slide the handle the full width to unlock — a deliberate
 gesture, not a long-press, because sustained pressure is exactly what a pocket produces.
 
+The locked screen carries **every readout you picked for the Tracker**, in the same
+order, updating every second — both are rendered from one source, so what you see with
+the phone out and what you see on the black sheet can never drift apart. The type sizes
+itself to how many you chose: two readouts fill the screen at ~67 px, seven fall into
+two columns. Nothing scrolls, deliberately — scrolling is a touch, and swallowing
+touches is the whole job.
+
 It arms itself: after the configured idle delay with a run tracking and the Tracker in
 front, it locks on its own. It will not lock while you are reading your stats, and never
 without a run. Set the delay to 0 to only ever lock by hand (there is a button on the

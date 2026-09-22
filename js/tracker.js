@@ -69,13 +69,40 @@ var Tracker = (function () {
     dom.btnPocket = UI.$('#btnPocket');
   }
 
-  /** The two figures worth showing on a locked screen. */
-  function liveFigures() {
-    if (!session) return { elapsed: '0:00', distance: '0.00 km' };
-    return {
-      elapsed: Utils.formatDuration(elapsedSec()),
-      distance: Utils.formatKm(session.distance) + ' km'
+  /**
+   * Current value of every selected readout, in canonical order. The Tracker grid and
+   * the pocket sheet both render from this, so the locked screen can never drift from
+   * what the tiles say.
+   */
+  function readouts() {
+    var tiles = selectedTiles();
+    if (!session) {
+      return tiles.map(function (t) {
+        return { key: t.key, label: t.label, value: t.idle, unit: t.unit || '' };
+      });
+    }
+
+    var el = elapsedSec();
+    // Speed decays to 0 if no fix has landed for a while.
+    var stale = session.lastFix && (Date.now() - session.lastFix) > 10000;
+    var cad = Cadence.current();
+    var wantsAscent = tiles.some(function (t) { return t.key === 'ascent'; });
+    var elev = wantsAscent ? Utils.computeElevation(session.points) : null;
+
+    var value = {
+      elapsed: [Utils.formatDuration(el), ''],
+      distance: [Utils.formatKm(session.distance), 'km'],
+      avgPace: [Utils.formatPace(Utils.paceFrom(session.distance, el)), '/km'],
+      lastPace: [Utils.formatPace(lastMinutePace()), '/km'],
+      speed: [Utils.formatSpeed(stale ? 0 : session.instantSpeed), 'km/h'],
+      cadence: [cad.spm ? String(Math.round(cad.spm)) : '--', 'spm'],
+      ascent: [elev && elev.samples ? '+' + elev.gainM : '--', 'm']
     };
+
+    return tiles.map(function (t) {
+      var v = value[t.key] || [t.idle, t.unit || ''];
+      return { key: t.key, label: t.label, value: v[0], unit: v[1] };
+    });
   }
 
   function newSession() {
@@ -184,28 +211,10 @@ var Tracker = (function () {
 
   function render() {
     if (!session || !dom.tile) return;
-    var el = elapsedSec();
-    // Speed decays to 0 if no fix has landed for a while.
-    var stale = session.lastFix && (Date.now() - session.lastFix) > 10000;
-    var cad = Cadence.current();
-
-    var values = {
-      elapsed: [Utils.formatDuration(el), ''],
-      distance: [Utils.formatKm(session.distance), 'km'],
-      avgPace: [Utils.formatPace(Utils.paceFrom(session.distance, el)), '/km'],
-      lastPace: [Utils.formatPace(lastMinutePace()), '/km'],
-      speed: [Utils.formatSpeed(stale ? 0 : session.instantSpeed), 'km/h'],
-      cadence: [cad.spm ? String(Math.round(cad.spm)) : '--', 'spm']
-    };
-    if (dom.tile.ascent) {
-      var elev = Utils.computeElevation(session.points);
-      values.ascent = [elev.samples ? '+' + elev.gainM : '--', 'm'];
-    }
-
-    for (var key in values) {
-      if (dom.tile[key]) UI.setStat(dom.tile[key], values[key][0], values[key][1]);
-    }
-    recordCadence(el, cad);
+    readouts().forEach(function (r) {
+      if (dom.tile[r.key]) UI.setStat(dom.tile[r.key], r.value, r.unit);
+    });
+    recordCadence(elapsedSec(), Cadence.current());
   }
 
   /* One cadence reading every few seconds is plenty for the chart, and keeps the
@@ -579,6 +588,6 @@ var Tracker = (function () {
     init: init, start: start, stop: stop, fresh: fresh, isActive: isActive,
     checkpoint: checkpoint, pendingRecovery: pendingRecovery, isRecoverable: isRecoverable,
     resume: resume, finishRecovered: finishRecovered, discardRecovery: discardRecovery,
-    tileDefs: tileDefs, renderTiles: renderTiles, liveFigures: liveFigures
+    tileDefs: tileDefs, renderTiles: renderTiles, readouts: readouts
   };
 })();
