@@ -22,7 +22,10 @@
     <div class="card">
       <div class="card-head">
         <h2>Session</h2>
-        <span id="gpsState" class="pill pill-idle">idle</span>
+        <span class="head-actions">
+          <button type="button" class="btn-mini" id="btnPocket" disabled>Lock screen</button>
+          <span id="gpsState" class="pill pill-idle">idle</span>
+        </span>
       </div>
 
       <div class="stat-grid" id="sessionTiles"></div>
@@ -135,6 +138,22 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>Pocket mode</h2></div>
+      <label class="field">
+        <span>Lock the screen after &mdash; <b id="pocketDelayValue">30 s</b></span>
+        <input type="range" id="setPocketDelay" min="0" max="180" step="5" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Readout brightness &mdash; <b id="pocketOpacityValue">20%</b></span>
+        <input type="range" id="setPocketOpacity" min="0" max="100" step="5" autocomplete="off">
+      </label>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" id="btnPocketPreview">Preview</button>
+      </div>
+      <p class="hint">While a run is tracking, the screen goes black after that long without a touch, so the phone can go in a pocket without setting off buttons &mdash; slide to unlock. The screen has to stay on for tracking to continue, so black is the cheapest thing to show: on an OLED panel black pixels are effectively off. Set the delay to 0 to only ever lock it by hand. A tap brings the readout back for a few seconds whatever the brightness, so 0% is usable.</p>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Deezer playlist</h2></div>
       <label class="field">
         <span>Playlist ID or URL</span>
@@ -235,6 +254,20 @@
   <button class="tab" data-tab="settings"><span class="tab-ico">&#9881;</span>Settings</button>
 </nav>
 
+<div class="pocket" id="pocket" hidden>
+  <div class="pocket-dim" id="pocketDim">
+    <div class="pocket-face">
+      <div class="pocket-elapsed" id="pocketElapsed">0:00</div>
+      <div class="pocket-distance" id="pocketDistance">0.00 km</div>
+      <p class="pocket-note">Screen locked &mdash; tracking continues</p>
+    </div>
+    <div class="pocket-track" id="pocketTrack">
+      <span class="pocket-hint">slide to unlock</span>
+      <div class="pocket-handle" id="pocketHandle" role="button" aria-label="Slide to unlock">&rsaquo;</div>
+    </div>
+  </div>
+</div>
+
 <div class="modal map-modal" id="mapModal" hidden>
   <div class="map-modal-box">
     <div class="map-modal-head">
@@ -263,6 +296,7 @@
 <script src="js/wakelock.js"></script>
 <script src="js/timer.js"></script>
 <script src="js/tracker.js"></script>
+<script src="js/pocket.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/calendar.js"></script>

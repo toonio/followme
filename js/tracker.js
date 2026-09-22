@@ -66,6 +66,16 @@ var Tracker = (function () {
     dom.summary = UI.$('#lastRunSummary');
     dom.summaryGrid = UI.$('#lastRunGrid');
     dom.summaryRoute = UI.$('#lastRunRoute');
+    dom.btnPocket = UI.$('#btnPocket');
+  }
+
+  /** The two figures worth showing on a locked screen. */
+  function liveFigures() {
+    if (!session) return { elapsed: '0:00', distance: '0.00 km' };
+    return {
+      elapsed: Utils.formatDuration(elapsedSec()),
+      distance: Utils.formatKm(session.distance) + ' km'
+    };
   }
 
   function newSession() {
@@ -217,6 +227,9 @@ var Tracker = (function () {
     dom.btnStart.disabled = active;
     dom.btnStop.disabled = !active;
     dom.btnNew.disabled = !active && !lastSaved;
+    // Locking is only meaningful over a run in progress — there is nothing to protect
+    // otherwise, and no way to get the screen back that is not just "unlock".
+    if (dom.btnPocket) dom.btnPocket.disabled = !active;
   }
 
   /* ----------------------------- crash safety --------------------------- */
@@ -541,6 +554,7 @@ var Tracker = (function () {
     dom.btnStart.addEventListener('click', start);
     dom.btnStop.addEventListener('click', function () { stop(false); });
     dom.btnNew.addEventListener('click', fresh);
+    if (dom.btnPocket) dom.btnPocket.addEventListener('click', function () { Pocket.lock(); });
 
     // The moments a run gets lost: switching away (the mistouch case), the tab being
     // frozen or discarded, or the page going away. Checkpoint at every one of them —
@@ -565,6 +579,6 @@ var Tracker = (function () {
     init: init, start: start, stop: stop, fresh: fresh, isActive: isActive,
     checkpoint: checkpoint, pendingRecovery: pendingRecovery, isRecoverable: isRecoverable,
     resume: resume, finishRecovered: finishRecovered, discardRecovery: discardRecovery,
-    tileDefs: tileDefs, renderTiles: renderTiles
+    tileDefs: tileDefs, renderTiles: renderTiles, liveFigures: liveFigures
   };
 })();

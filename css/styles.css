@@ -463,6 +463,96 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
 .btn-mini:hover { border-color: var(--accent); color: var(--accent); }
 .check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
+/* ------------------------------- pocket ------------------------------ */
+/* Pure black, not a dark grey: on OLED that is the difference between pixels
+   drawing power and not. Above the tab bar and the dialogs, because its whole job
+   is to be the only thing the screen will respond to. */
+.pocket {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12vh 20px calc(6vh + env(safe-area-inset-bottom));
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.pocket-dim {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  opacity: .2;
+  transition: opacity .35s ease;
+}
+.pocket-face { text-align: center; }
+.pocket-elapsed {
+  font-size: clamp(56px, 18vw, 96px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+}
+.pocket-distance {
+  margin-top: 10px;
+  font-size: clamp(24px, 8vw, 40px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.pocket-note {
+  margin: 18px 0 0;
+  font-size: 12px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: #fff;
+}
+.pocket-track {
+  position: relative;
+  width: min(320px, 86vw);
+  height: 62px;
+  border: 1px solid #333;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.pocket-hint {
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #777;
+  pointer-events: none;
+}
+.pocket-handle {
+  position: absolute;
+  left: 4px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #1c232c;
+  border: 1px solid #3a4453;
+  color: #e6edf3;
+  font-size: 26px;
+  line-height: 52px;
+  text-align: center;
+  touch-action: none;
+}
+.pocket-track.is-dragging .pocket-handle { background: #2a323d; }
+/* Nothing behind the sheet should scroll while a thigh is pressed against it. */
+body.is-pocketed { overflow: hidden; }
+
+.head-actions { display: flex; align-items: center; gap: 8px; }
+
 /* ------------------------------- tabbar ------------------------------ */
 .tabbar {
   position: fixed;

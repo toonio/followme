@@ -17,7 +17,9 @@ var Settings = (function () {
     // Which readouts the Tracker shows, in canonical order. Stored as a string so a
     // default array can never be shared by reference between callers.
     tiles: 'elapsed,distance,avgPace,lastPace,speed,cadence,ascent',
-    cadence: true
+    cadence: true,
+    pocketDelaySec: 30,      // idle seconds before the screen locks itself; 0 = never
+    pocketOpacity: 20
   };
 
   var current = load();

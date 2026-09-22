@@ -34,6 +34,7 @@ count as secure for local testing).
 | `js/db.js` | IndexedDB run store + live-session checkpoints (falls back to `localStorage`) |
 | `js/geocode.js` | Reverse geocoding: coordinate to commune name |
 | `js/cadence.js` | Steps per minute from the accelerometer |
+| `js/pocket.js` | Lock screen for a run in progress |
 | `js/ui.js` | DOM helpers, modal, route SVG and the speed ramp |
 | `js/routeview.js` | Route thumbnail and the linked map + speed chart |
 | `js/wakelock.js` | Reference-counted Screen Wake Lock |
@@ -103,6 +104,27 @@ The live trace is kept at full resolution in memory so the rolling-window pace s
 honest; only a decimated trace is written to storage — one point every N seconds
 (4 by default) then Douglas-Peucker simplified at ~4 m. A 20-minute run typically
 shrinks from ~1200 fixes to ~50 stored points (a few KB).
+
+**Pocket mode** — a lock screen for a run in progress. The screen has to stay on for
+tracking to continue, which leaves a live touch surface against your leg; this covers it
+with an opaque black sheet that swallows every touch, so the phone can go in a pocket
+without setting off Stop. Slide the handle the full width to unlock — a deliberate
+gesture, not a long-press, because sustained pressure is exactly what a pocket produces.
+
+It arms itself: after the configured idle delay with a run tracking and the Tracker in
+front, it locks on its own. It will not lock while you are reading your stats, and never
+without a run. Set the delay to 0 to only ever lock by hand (there is a button on the
+session card).
+
+Black rather than dimmed, because on an OLED panel black pixels are effectively off, so
+the darker the sheet the less the screen costs. **Settings → Pocket mode** carries the
+idle delay and how visible the readout on top of it is — 0% is a genuinely black screen,
+and still escapable: a tap reveals the readout and the unlock slider for five seconds at
+any brightness. **Preview** shows the real sheet without needing a run, which doubles as
+practice at the gesture.
+
+What it does not do is let the screen turn *off*. A hidden page is frozen and no web API
+changes that; that would need a native shell.
 
 **Interval timer** — configurable rounds × work/rest, independent of the GPS tracker;
 either can run alone or both together. The countdown is derived from `Date.now()`

@@ -261,6 +261,51 @@
     });
   }
 
+  /** Pocket mode's two knobs. Both apply live, so Preview shows the real thing. */
+  function initPocketCard() {
+    var delay = UI.$('#setPocketDelay');
+    var opacity = UI.$('#setPocketOpacity');
+    var preview = UI.$('#btnPocketPreview');
+    if (!delay || !opacity) return;
+
+    function label() {
+      var d = parseInt(delay.value, 10);
+      UI.setText('#pocketDelayValue', d ? d + ' s' : 'only by hand');
+      UI.setText('#pocketOpacityValue', opacity.value + '%');
+    }
+
+    function load() {
+      delay.value = Settings.get('pocketDelaySec');
+      opacity.value = Settings.get('pocketOpacity');
+      label();
+    }
+
+    delay.addEventListener('input', label);
+    delay.addEventListener('change', function () {
+      Settings.set({ pocketDelaySec: Utils.clamp(parseInt(delay.value, 10) || 0, 0, 600) });
+      label();
+    });
+
+    opacity.addEventListener('input', function () {
+      label();
+      // Live, so dragging this while the sheet is previewed shows the actual result.
+      document.documentElement.style.setProperty('--pocket-opacity', (parseInt(opacity.value, 10) || 0) / 100);
+      Pocket.applySettings();
+    });
+    opacity.addEventListener('change', function () {
+      Settings.set({ pocketOpacity: Utils.clamp(parseInt(opacity.value, 10), 0, 100) });
+    });
+
+    [delay, opacity].forEach(function (input) {
+      input.addEventListener('wheel', function () { input.blur(); }, { passive: true });
+    });
+
+    preview.addEventListener('click', function () { Pocket.preview(); });
+
+    load();
+    document.addEventListener('settings-changed', load);
+  }
+
   function initSettingsView() {
     var deezer = UI.$('#setDeezer');
     var rounds = UI.$('#setRounds');
@@ -473,10 +518,12 @@
     initViewportPinning();
     initTabs();
     Tracker.init();
+    Pocket.init();
     initTimerView();
     Stats.init();
     Calendar.init();
     initSettingsView();
+    initPocketCard();
     initTilePicker();
     initCadenceCard();
     initBackup();
