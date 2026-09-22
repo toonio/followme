@@ -83,9 +83,25 @@ var Pocket = (function () {
    * afterwards.
    */
   function buildFace() {
-    var list = Tracker.readouts();
     UI.clear(dom.face);
     cells = {};
+
+    var list;
+    try {
+      list = Tracker.readouts();
+    } catch (e) {
+      list = null;
+    }
+    // A blank sheet is indistinguishable from "the app is broken", and that is exactly
+    // how a stale cached script once presented itself. Say something instead.
+    if (!list || !list.length) {
+      dom.face.className = 'pocket-face size-lg';
+      dom.face.appendChild(UI.el('div', { class: 'pocket-stat' }, [
+        UI.el('span', { class: 'pocket-value', text: '—' }),
+        UI.el('span', { class: 'pocket-label', text: 'No readouts — reload the app' })
+      ]));
+      return;
+    }
 
     // Fewer readouts, bigger type — the whole point is reading it at a glance while
     // moving, so a single chosen figure should fill the screen.

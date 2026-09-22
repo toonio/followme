@@ -19,6 +19,19 @@ python -m http.server 8123
 
 Then browse to `http://localhost:8123`.
 
+Before committing a deploy, stamp the asset URLs:
+
+```bash
+python tools/bump-assets.py
+```
+
+GitHub Pages serves everything with `Cache-Control: max-age=600`, and a browser may
+re-fetch `index.html` while keeping a cached `js/*.js`. New markup then drives old code,
+which fails *silently* — the old code writes to element ids the new markup no longer
+has, and `UI.setText` no-ops on a null node. That shipped a locked screen with no
+readouts on it. The version query string makes each deploy's URLs unique, so new HTML
+can only load the JS and CSS it was built against.
+
 Deploy by copying the folder to any static host. **Use HTTPS on a real host** — the
 Geolocation and Wake Lock APIs only work in a secure context (`localhost` and `file://`
 count as secure for local testing).
