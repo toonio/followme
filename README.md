@@ -138,10 +138,15 @@ app's accent on completion. The box is hidden entirely when no series is under w
 rather than showing a stale time nothing is counting. It follows the timer's own update
 cadence rather than the one-second readout tick, so the seconds do not appear to skip.
 
-It arms itself: after the configured idle delay with a run tracking and the Tracker in
-front, it locks on its own. It will not lock while you are reading your stats, and never
-without a run. Set the delay to 0 to only ever lock by hand (there is a button on the
-session card).
+**Either tool arms it** — a GPS run, or an interval series on its own. A track session
+with just the timer is as good a reason to pocket the phone as a run is. With no run
+behind it the sheet shows only the countdown, not a grid of zeroed placeholders, and the
+note says `timer running` rather than claiming to be tracking.
+
+It arms itself: after the configured idle delay with one of them running and the Tracker
+in front, it locks on its own. It will not lock while you are reading your stats, and
+never with nothing running. Set the delay to 0 to only ever lock by hand (there is a
+button on the session card).
 
 Black rather than dimmed, because on an OLED panel black pixels are effectively off, so
 the darker the sheet the less the screen costs. **Settings → Pocket mode** carries the

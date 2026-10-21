@@ -38,6 +38,19 @@ var Pocket = (function () {
 
   function isLocked() { return locked; }
 
+  /**
+   * Either tool arms the lock: a GPS run, or an interval series on its own. A track
+   * session with just the timer is as good a reason to pocket the phone as a run is.
+   */
+  function canLock() {
+    return Tracker.isActive() || IntervalTimer.isActive();
+  }
+
+  /** Keep the Lock button in step with whichever tool is running. */
+  function refreshArm() {
+    if (dom.btn) dom.btn.disabled = locked || !canLock();
+  }
+
   /** Any interaction postpones the automatic lock. */
   function noteActivity() {
     lastActivity = Date.now();
@@ -111,7 +124,21 @@ var Pocket = (function () {
     UI.clear(dom.face);
     cells = {};
 
+    var tracking = Tracker.isActive();
+    if (dom.note) {
+      UI.setText(dom.note, tracking
+        ? 'Screen locked — tracking continues'
+        : 'Screen locked — timer running');
+    }
+
+    // Without a run there are no run figures, only placeholders. Preview still shows
+    // them, because that is how the brightness and layout get judged.
     var list;
+    if (!tracking && !previewing) {
+      renderTimer();
+      dom.face.className = 'pocket-face size-lg';
+      return;
+    }
     try {
       list = Tracker.readouts();
     } catch (e) {
@@ -206,7 +233,7 @@ var Pocket = (function () {
   /* ------------------------------ lifecycle ----------------------------- */
 
   function lock() {
-    if (locked || !Tracker.isActive()) return;
+    if (locked || !canLock()) return;
     locked = true;
     setHandle(0);
     dom.root.hidden = false;
@@ -215,6 +242,7 @@ var Pocket = (function () {
     peek();                                    // show what it is before it goes dark
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(renderFace, 1000);  // a readout, not an animation
+    refreshArm();
   }
 
   function unlock() {
@@ -226,6 +254,7 @@ var Pocket = (function () {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
     if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
     noteActivity();
+    refreshArm();
   }
 
   /**
@@ -233,7 +262,7 @@ var Pocket = (function () {
    * Locking the screen under someone reading their stats would be a bug, not a feature.
    */
   function shouldAutoLock() {
-    if (locked || !Tracker.isActive()) return false;
+    if (locked || !canLock()) return false;
     var delay = delaySec();
     if (!delay) return false;                  // 0 = never
     if (document.querySelector('#view-tracker').hidden) return false;
@@ -241,6 +270,7 @@ var Pocket = (function () {
   }
 
   function checkIdle() {
+    refreshArm();
     if (shouldAutoLock()) lock();
   }
 
@@ -256,6 +286,8 @@ var Pocket = (function () {
     dom.timer = UI.$('#pocketTimer');
     dom.timerValue = UI.$('#pocketTimerValue');
     dom.timerPhase = UI.$('#pocketTimerPhase');
+    dom.note = UI.$('.pocket-note');
+    dom.btn = UI.$('#btnPocket');
     dom.track = UI.$('#pocketTrack');
     dom.handle = UI.$('#pocketHandle');
     if (!dom.root) return;
@@ -287,16 +319,21 @@ var Pocket = (function () {
 
     // Follow the timer's own cadence rather than the one-second readout tick, so the
     // countdown does not appear to skip a second.
-    IntervalTimer.onChange(function (snap) { if (locked) renderTimer(snap); });
+    IntervalTimer.onChange(function (snap) {
+      refreshArm();                       // starting a series arms the lock immediately
+      if (locked) renderTimer(snap);
+    });
 
     document.addEventListener('settings-changed', applySettings);
     idleTimer = setInterval(checkIdle, 1000);
     noteActivity();
+    refreshArm();
   }
 
   return {
     init: init, lock: lock, unlock: unlock, preview: preview, isLocked: isLocked,
     noteActivity: noteActivity, applySettings: applySettings,
+    canLock: canLock, refreshArm: refreshArm,
     delaySec: delaySec, dimOpacity: dimOpacity
   };
 })();

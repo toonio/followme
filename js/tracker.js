@@ -236,9 +236,9 @@ var Tracker = (function () {
     dom.btnStart.disabled = active;
     dom.btnStop.disabled = !active;
     dom.btnNew.disabled = !active && !lastSaved;
-    // Locking is only meaningful over a run in progress — there is nothing to protect
-    // otherwise, and no way to get the screen back that is not just "unlock".
-    if (dom.btnPocket) dom.btnPocket.disabled = !active;
+    // Pocket owns that button: the interval timer can arm the lock too, so a run
+    // being inactive is not on its own a reason to disable it.
+    if (window.Pocket) Pocket.refreshArm();
   }
 
   /* ----------------------------- crash safety --------------------------- */
