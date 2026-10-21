@@ -507,6 +507,44 @@ main { padding: var(--pad); max-width: 760px; margin: 0 auto; }
   min-height: 0;
 }
 
+/* The interval countdown, when a series is running. One `color` drives both the
+   border and the digits via currentColor, so the phase is unmistakable at a glance:
+   green means go, red means stop. */
+.pocket-timer {
+  align-self: center;
+  border: 3px solid currentColor;
+  border-radius: 18px;
+  padding: 1.6vh 7vw;
+  margin-bottom: 3.4vh;
+  text-align: center;
+  color: var(--work);
+}
+.pocket-timer.is-work { color: var(--work); }
+.pocket-timer.is-rest { color: var(--danger); }
+.pocket-timer.is-paused { color: var(--warn); }
+.pocket-timer.is-done { color: var(--accent); }
+.pocket-timer-value {
+  display: block;
+  font-size: clamp(38px, 13vw, 68px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.pocket-timer-phase {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  opacity: .85;
+}
+/* With the countdown taking the top of the sheet, a long readout list needs to give
+   some height back rather than push the unlock slider off the bottom. */
+.pocket-body.has-timer .pocket-face { gap: 2.2vh 6vw; }
+.pocket-body.has-timer .pocket-face.size-md .pocket-value { font-size: clamp(24px, 8vw, 40px); }
+.pocket-body.has-timer .pocket-face.size-lg .pocket-value { font-size: clamp(30px, 10vw, 50px); }
+.pocket-body.has-timer .pocket-face.size-xl .pocket-value { font-size: clamp(42px, 14vw, 72px); }
+
 /* Every readout the user picked for the Tracker, on black. Two columns as soon as
    there is more than one, so a long list stays readable without scrolling — and the
    sheet must never scroll, since scrolling is a touch it is supposed to swallow. */

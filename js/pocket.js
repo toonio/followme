@@ -45,6 +45,31 @@ var Pocket = (function () {
 
   /* ------------------------------- display ------------------------------ */
 
+  /**
+   * The interval countdown, mirrored onto the locked screen. Hidden unless a series
+   * is actually under way — a stale "3:00" sitting there when no timer is running
+   * would be worse than nothing.
+   */
+  function renderTimer(snap) {
+    if (!dom.timer) return;
+    var s = snap || IntervalTimer.snapshot();
+    var show = s.status === 'running' || s.status === 'paused' || s.status === 'done';
+    dom.timer.hidden = !show;
+    dom.body.classList.toggle('has-timer', show);
+    if (!show) return;
+
+    var state = s.status === 'paused' ? 'paused'
+      : s.status === 'done' ? 'done'
+      : (s.phase === 'rest' ? 'rest' : 'work');
+    var label = state === 'work' ? 'go' : state === 'rest' ? 'rest' : state;
+
+    dom.timer.className = 'pocket-timer is-' + state;
+    UI.setText(dom.timerValue, Utils.formatClock(s.remainingSec));
+    UI.setText(dom.timerPhase,
+      state === 'done' ? 'series complete'
+        : label + ' · round ' + Math.max(s.round, 1) + '/' + s.rounds);
+  }
+
   function applyDim(value) {
     if (dom.dim) dom.dim.style.opacity = value;
   }
@@ -108,6 +133,7 @@ var Pocket = (function () {
     dom.face.className = 'pocket-face ' +
       (list.length <= 2 ? 'size-xl' : list.length <= 4 ? 'size-lg' : 'size-md');
 
+    renderTimer();
     list.forEach(function (r) {
       var value = UI.el('span', { class: 'pocket-value' });
       UI.setStat(value, r.value, r.unit);
@@ -120,7 +146,9 @@ var Pocket = (function () {
   }
 
   function renderFace() {
-    if (!locked || (previewing && !Tracker.isActive())) return;
+    if (!locked) return;
+    renderTimer();
+    if (previewing && !Tracker.isActive()) return;
     Tracker.readouts().forEach(function (r) {
       if (cells[r.key]) UI.setStat(cells[r.key], r.value, r.unit);
     });
@@ -224,6 +252,10 @@ var Pocket = (function () {
     dom.root = UI.$('#pocket');
     dom.dim = UI.$('#pocketDim');
     dom.face = UI.$('#pocketFace');
+    dom.body = UI.$('.pocket-body');
+    dom.timer = UI.$('#pocketTimer');
+    dom.timerValue = UI.$('#pocketTimerValue');
+    dom.timerPhase = UI.$('#pocketTimerPhase');
     dom.track = UI.$('#pocketTrack');
     dom.handle = UI.$('#pocketHandle');
     if (!dom.root) return;
@@ -252,6 +284,10 @@ var Pocket = (function () {
         if (!locked) noteActivity();
       }, { passive: true });
     });
+
+    // Follow the timer's own cadence rather than the one-second readout tick, so the
+    // countdown does not appear to skip a second.
+    IntervalTimer.onChange(function (snap) { if (locked) renderTimer(snap); });
 
     document.addEventListener('settings-changed', applySettings);
     idleTimer = setInterval(checkIdle, 1000);

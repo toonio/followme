@@ -131,6 +131,13 @@ itself to how many you chose: two readouts fill the screen at ~67 px, seven fall
 two columns. Nothing scrolls, deliberately — scrolling is a touch, and swallowing
 touches is the whole job.
 
+When an interval series is running, the countdown sits above the readouts in a bordered
+box whose **border and digits share one colour**: green for work, red for rest — go and
+stop, readable at a glance without parsing a word of it. Amber while paused, and the
+app's accent on completion. The box is hidden entirely when no series is under way,
+rather than showing a stale time nothing is counting. It follows the timer's own update
+cadence rather than the one-second readout tick, so the seconds do not appear to skip.
+
 It arms itself: after the configured idle delay with a run tracking and the Tracker in
 front, it locks on its own. It will not lock while you are reading your stats, and never
 without a run. Set the delay to 0 to only ever lock by hand (there is a button on the
